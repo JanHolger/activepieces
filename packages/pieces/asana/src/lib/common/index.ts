@@ -1,9 +1,10 @@
 import { Property, OAuth2PropertyValue } from "@activepieces/pieces-framework";
-import { getAccessTokenOrThrow, HttpMethod, HttpMessageBody, HttpResponse, httpClient, AuthenticationType } from "@activepieces/pieces-common";
+import { getAccessTokenOrThrow } from "@activepieces/pieces-common";
+
+import asana, { Client } from 'asana'
 
 export const asanaCommon = {
     workspace: Property.Dropdown({
-        description: 'Asana workspace to create the task in',
         displayName: 'Workspace',
         required: true,
         refreshers: [],
@@ -15,16 +16,11 @@ export const asanaCommon = {
                     options: [],
                 };
             }
-            const accessToken = getAccessTokenOrThrow(auth as OAuth2PropertyValue);
-            const response = (await callAsanaApi<{
-                data: {
-                    gid: string,
-                    name: string
-                }[]
-            }>(HttpMethod.GET, "workspaces", accessToken, undefined)).body;
+            const client = makeClient(auth as OAuth2PropertyValue)
+            const workspaces = await fetchAllPages(await client.workspaces.findAll())
             return {
                 disabled: false,
-                options: response.data.map((workspace) => {
+                options: workspaces.map((workspace) => {
                     return {
                         label: workspace.name,
                         value: workspace.gid
@@ -34,7 +30,6 @@ export const asanaCommon = {
         }
     }),
     project: Property.Dropdown({
-        description: 'Asana Project to create the task in',
         displayName: 'Project',
         required: true,
         refreshers: ['workspace'],
@@ -53,16 +48,11 @@ export const asanaCommon = {
                     options: [],
                 };
             }
-            const accessToken = getAccessTokenOrThrow(auth as OAuth2PropertyValue);
-            const response = (await callAsanaApi<{
-                data: {
-                    gid: string,
-                    name: string
-                }[]
-            }>(HttpMethod.GET, "projects?workspace=" + workspace, accessToken, undefined)).body;
+            const client = makeClient(auth as OAuth2PropertyValue)
+            const projects = await fetchAllPages(await client.projects.findByWorkspace(workspace as string))
             return {
                 disabled: false,
-                options: response.data.map((project) => {
+                options: projects.map((project) => {
                     return {
                         label: project.name,
                         value: project.gid
@@ -72,7 +62,6 @@ export const asanaCommon = {
         }
     }),
     assignee: Property.Dropdown<string>({
-        description: 'Assignee for the task',
         displayName: 'Assignee',
         required: false,
         refreshers: ['workspace'],
@@ -91,8 +80,8 @@ export const asanaCommon = {
                     options: [],
                 };
             }
-            const accessToken = getAccessTokenOrThrow(auth as OAuth2PropertyValue);
-            const users = await getUsers(accessToken, workspace as string);
+            const client = makeClient(auth as OAuth2PropertyValue)
+            const users = await fetchAllPages(await client.users.findByWorkspace(workspace as string))
             return {
                 disabled: false,
                 options: users.map((user) => {
@@ -105,7 +94,6 @@ export const asanaCommon = {
         },
     }),
     tags: Property.MultiSelectDropdown<string>({
-        description: 'Tags to add to the task',
         displayName: 'Tags',
         required: false,
         refreshers: ['workspace'],
@@ -124,14 +112,14 @@ export const asanaCommon = {
                     options: [],
                 };
             }
-            const accessToken = getAccessTokenOrThrow(auth as OAuth2PropertyValue);
-            const response = await getTags(accessToken, workspace as string);
+            const client = makeClient(auth as OAuth2PropertyValue)
+            const tags = await fetchAllPages(await client.tags.findByWorkspace(workspace as string))
             return {
                 disabled: false,
-                options: response.map((project) => {
+                options: tags.map(tag => {
                     return {
-                        label: project.name,
-                        value: project.gid
+                        label: tag.name,
+                        value: tag.gid
                     }
                 }),
             };
@@ -139,43 +127,33 @@ export const asanaCommon = {
     }),
 }
 
-export async function getUsers(accessToken: string, workspace: string): Promise<
-    {
-        gid: string,
-        name: string
-    }[]>{
-    const response = (await callAsanaApi<{
-        data: {
-            gid: string,
-            name: string
-        }[]
-    }>(HttpMethod.GET, "users?workspace=" + workspace, accessToken, undefined)).body;
-    return response.data;
+export function makeClient(auth: OAuth2PropertyValue): Client {
+    const accessToken = getAccessTokenOrThrow(auth as OAuth2PropertyValue)
+    return Client.create().useAccessToken(accessToken)
 }
 
-export async function getTags(accessToken: string, workspace: string): Promise<
-    {
-        gid: string,
-        name: string
-    }[]
-> {
-    const response = (await callAsanaApi<{
-        data: {
-            gid: string,
-            name: string
-        }[]
-    }>(HttpMethod.GET, "workspaces/" + workspace + "/tags", accessToken, undefined)).body;
-    return response.data;
+export async function resolveTagsByNamesOrIds(client: asana.Client, workspace: string, names: string[]): Promise<string[]> {
+    const allTags = await fetchAllPages(await client.tags.findByWorkspace(workspace))
+    const tagsGids = names.map(inputTag => {
+        const foundTagById = allTags.find(tag => tag.gid === inputTag)
+        if (foundTagById) {
+            return foundTagById.gid
+        }
+        const foundTag = allTags.find(tag => tag.name?.toLowerCase() === inputTag.toLowerCase())
+        if (foundTag) {
+            return foundTag.gid
+        }
+        return null
+    }).filter(tag => tag !== null) as string[]
+    return tagsGids
 }
 
-export async function callAsanaApi<T extends HttpMessageBody>(method: HttpMethod, apiUrl: string, accessToken: string, body: any | undefined): Promise<HttpResponse<T>> {
-    return await httpClient.sendRequest<T>({
-        method: method,
-        url: `https://app.asana.com/api/1.0/${apiUrl}`,
-        authentication: {
-            type: AuthenticationType.BEARER_TOKEN,
-            token: accessToken
-        },
-        body: body
-    })
+export async function fetchAllPages<T extends asana.resources.AnonymousResource>(page: asana.resources.ResourceList<T>): Promise<T[]> {
+    const resources: T[] = []
+    let currentPage: asana.resources.ResourceList<T> | null = page
+    do {
+        resources.push(...currentPage.data)
+        currentPage = await currentPage.nextPage()
+    } while(currentPage != null)
+    return resources
 }
