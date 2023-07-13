@@ -3,8 +3,6 @@ import { getAccessTokenOrThrow } from "@activepieces/pieces-common";
 
 import asana, { Client } from 'asana'
 
-asana.resources.Events
-
 export const asanaCommon = {
     auth: PieceAuth.OAuth2({
         displayName: 'Authentication',
@@ -178,7 +176,11 @@ export const asanaCommon = {
 
 export function makeClient(auth: OAuth2PropertyValue): Client {
     const accessToken = getAccessTokenOrThrow(auth as OAuth2PropertyValue)
-    return Client.create().useAccessToken(accessToken)
+    return Client.create({
+        defaultHeaders: {
+            'Asana-Enable': 'new_goal_memberships'
+        }
+    }).useAccessToken(accessToken)
 }
 
 export async function resolveTagsByNamesOrIds(client: asana.Client, workspace: string, names: string[]): Promise<string[]> {

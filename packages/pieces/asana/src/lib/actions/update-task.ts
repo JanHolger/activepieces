@@ -28,12 +28,16 @@ export default createAction({
             required: false,
         }),
         assignee: asanaCommon.assignee(false),
+        custom_fields: Property.Object({
+            displayName: 'Custom Fields',
+            required: false,
+        })
     },
     sampleData: sampleTask,
     async run(configValue) {
         const { auth } = configValue
         const client = makeClient(auth as OAuth2PropertyValue)
-        const { task, name, notes, due_on, assignee } = configValue.propsValue
+        const { task, name, notes, due_on, assignee, custom_fields } = configValue.propsValue
 
         const convertDueOne = due_on ? dayjs(due_on).toISOString() : undefined
 
@@ -41,10 +45,11 @@ export default createAction({
             name,
             notes,
             assignee,
-            due_on: convertDueOne
+            due_on: convertDueOne,
+            custom_fields: custom_fields as Record<string, string>
         })
 
-        return task
+        return updatedTask
     }
 })
 
