@@ -1,20 +1,30 @@
-import { Property, OAuth2PropertyValue } from "@activepieces/pieces-framework";
+import { Property, OAuth2PropertyValue, PieceAuth } from "@activepieces/pieces-framework";
 import { getAccessTokenOrThrow } from "@activepieces/pieces-common";
 
 import asana, { Client } from 'asana'
 
+asana.resources.Events
+
 export const asanaCommon = {
-    workspace: Property.Dropdown({
-        displayName: 'Workspace',
+    auth: PieceAuth.OAuth2({
+        displayName: 'Authentication',
+        description: "",
+        authUrl: "https://app.asana.com/-/oauth_authorize",
+        tokenUrl: "https://app.asana.com/-/oauth_token",
         required: true,
+        scope: ['default'],
+    }),
+    workspace: (required = true) => Property.Dropdown({
+        displayName: 'Workspace',
+        required,
         refreshers: [],
         options: async ({ auth }) => {
             if (!auth) {
                 return {
                     disabled: true,
                     placeholder: 'connect your account first',
-                    options: [],
-                };
+                    options: []
+                }
             }
             const client = makeClient(auth as OAuth2PropertyValue)
             const workspaces = await fetchAllPages(await client.workspaces.findAll())
@@ -25,28 +35,28 @@ export const asanaCommon = {
                         label: workspace.name,
                         value: workspace.gid
                     }
-                }),
-            };
+                })
+            }
         }
     }),
-    project: Property.Dropdown({
+    project: (required = true) => Property.Dropdown({
         displayName: 'Project',
-        required: true,
+        required,
         refreshers: ['workspace'],
         options: async ({ auth, workspace }) => {
             if (!auth) {
                 return {
                     disabled: true,
                     placeholder: 'connect your account first',
-                    options: [],
-                };
+                    options: []
+                }
             }
             if (!workspace) {
                 return {
                     disabled: true,
                     placeholder: 'Select workspace first',
-                    options: [],
-                };
+                    options: []
+                }
             }
             const client = makeClient(auth as OAuth2PropertyValue)
             const projects = await fetchAllPages(await client.projects.findByWorkspace(workspace as string))
@@ -57,28 +67,28 @@ export const asanaCommon = {
                         label: project.name,
                         value: project.gid
                     }
-                }),
-            };
+                })
+            }
         }
     }),
-    assignee: Property.Dropdown<string>({
+    assignee: (required = true) => Property.Dropdown<string>({
         displayName: 'Assignee',
-        required: false,
+        required,
         refreshers: ['workspace'],
         options: async ({ auth, workspace }) => {
             if (!auth) {
                 return {
                     disabled: true,
                     placeholder: 'connect your account first',
-                    options: [],
-                };
+                    options: []
+                }
             }
             if (!workspace) {
                 return {
                     disabled: true,
                     placeholder: 'Select workspace first',
-                    options: [],
-                };
+                    options: []
+                }
             }
             const client = makeClient(auth as OAuth2PropertyValue)
             const users = await fetchAllPages(await client.users.findByWorkspace(workspace as string))
@@ -89,28 +99,28 @@ export const asanaCommon = {
                         label: user.name,
                         value: user.gid
                     }
-                }),
-            };
-        },
+                })
+            }
+        }
     }),
-    tags: Property.MultiSelectDropdown<string>({
+    tags: (required = true) => Property.MultiSelectDropdown<string>({
         displayName: 'Tags',
-        required: false,
+        required,
         refreshers: ['workspace'],
         options: async ({ auth, workspace }) => {
             if (!auth) {
                 return {
                     disabled: true,
                     placeholder: 'connect your account first',
-                    options: [],
-                };
+                    options: []
+                }
             }
             if (!workspace) {
                 return {
                     disabled: true,
                     placeholder: 'Select workspace first',
-                    options: [],
-                };
+                    options: []
+                }
             }
             const client = makeClient(auth as OAuth2PropertyValue)
             const tags = await fetchAllPages(await client.tags.findByWorkspace(workspace as string))
@@ -121,10 +131,49 @@ export const asanaCommon = {
                         label: tag.name,
                         value: tag.gid
                     }
-                }),
-            };
-        },
+                })
+            }
+        }
     }),
+    task: (required = true) => Property.Dropdown<string>({
+        displayName: 'Task',
+        required,
+        refreshers: ['workspace', 'project'],
+        options: async ({ auth, workspace, project }) => {
+            if (!auth) {
+                return {
+                    disabled: true,
+                    placeholder: 'connect your account first',
+                    options: []
+                }
+            }
+            if (!workspace) {
+                return {
+                    disabled: true,
+                    placeholder: 'Select workspace first',
+                    options: []
+                }
+            }
+            if (!project) {
+                return {
+                    disabled: true,
+                    placeholder: 'Select project first',
+                    options: []
+                }
+            }
+            const client = makeClient(auth as OAuth2PropertyValue)
+            const tasks = await fetchAllPages(await client.tasks.findByProject(project as string))
+            return {
+                disabled: false,
+                options: tasks.map(task => {
+                    return {
+                        label: task.name,
+                        value: task.gid
+                    }
+                })
+            }
+        },
+    })
 }
 
 export function makeClient(auth: OAuth2PropertyValue): Client {
