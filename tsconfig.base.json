@@ -27,6 +27,7 @@
       "@activepieces/piece-bannerbear": [
         "packages/pieces/bannerbear/src/index.ts"
       ],
+      "@activepieces/piece-bexio": ["packages/pieces/bexio/src/index.ts"],
       "@activepieces/piece-binance": ["packages/pieces/binance/src/index.ts"],
       "@activepieces/piece-blackbaud": [
         "packages/pieces/blackbaud/src/index.ts"

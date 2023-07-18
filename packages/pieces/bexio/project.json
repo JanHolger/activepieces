@@ -1,0 +1,42 @@
+{
+  "name": "pieces-bexio",
+  "$schema": "../../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "packages/pieces/bexio/src",
+  "projectType": "library",
+  "targets": {
+    "build": {
+      "executor": "@nx/js:tsc",
+      "outputs": [
+        "{options.outputPath}"
+      ],
+      "options": {
+        "outputPath": "dist/packages/pieces/bexio",
+        "tsConfig": "packages/pieces/bexio/tsconfig.lib.json",
+        "packageJson": "packages/pieces/bexio/package.json",
+        "main": "packages/pieces/bexio/src/index.ts",
+        "assets": [
+          "packages/pieces/bexio/*.md"
+        ],
+        "buildableProjectDepsInPackageJsonType": "dependencies"
+      }
+    },
+    "publish": {
+      "command": "node tools/scripts/publish.mjs pieces-bexio {args.ver} {args.tag}",
+      "dependsOn": [
+        "build"
+      ]
+    },
+    "lint": {
+      "executor": "@nx/linter:eslint",
+      "outputs": [
+        "{options.outputFile}"
+      ],
+      "options": {
+        "lintFilePatterns": [
+          "packages/pieces/bexio/**/*.ts"
+        ]
+      }
+    }
+  },
+  "tags": []
+}
