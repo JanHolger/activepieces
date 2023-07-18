@@ -46,5 +46,30 @@ export const bexioCommon = {
                 })
             }
         }
+    }),
+    client_service_id: (required = true) => Property.Dropdown({
+        displayName: 'Business Activity',
+        required,
+        refreshers: [],
+        options: async ({ auth }) => {
+            if (isNil(auth)) {
+                return {
+                    disabled: true,
+                    placeholder: 'setup authentication first',
+                    options: []
+                };
+            }
+            const client = makeClient(auth as OAuth2PropertyValue)
+            const users = await client.listClientServices({ limit: 2000 })
+            return {
+                disabled: false,
+                options: users.map((service) => {
+                    return {
+                        label: service.name,
+                        value: service.id
+                    }
+                })
+            }
+        }
     })
 }

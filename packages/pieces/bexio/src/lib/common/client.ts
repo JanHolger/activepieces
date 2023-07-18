@@ -2,6 +2,7 @@ import { AuthenticationType, HttpMessageBody, HttpMethod, QueryParams, httpClien
 import { ListParams } from "./models/common"
 import { User } from "./models/user"
 import { ClientService } from "./models/client_service"
+import { CreateTimesheetRequest, Timesheet } from "./models/timesheet"
 
 function prepareQueryParams(obj: any): Record<string, string> {
     const params: Record<string, string> = {}
@@ -33,8 +34,12 @@ export class BexioClient {
         return await this.makeRequest(HttpMethod.GET, '/3.0/users', prepareQueryParams(params))
     }
 
-    async getClientServices(params?: ListParams): Promise<ClientService[]> {
+    async listClientServices(params?: ListParams): Promise<ClientService[]> {
         return await this.makeRequest(HttpMethod.GET, '/2.0/client_service', prepareQueryParams(params))
+    }
+
+    async createTimesheet(request: CreateTimesheetRequest): Promise<Timesheet> {
+        return await this.makeRequest(HttpMethod.POST, '/2.0/timesheet', undefined, request)
     }
 
 }
