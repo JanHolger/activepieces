@@ -3,6 +3,8 @@ import { ListParams } from "./models/common"
 import { User } from "./models/user"
 import { ClientService } from "./models/client_service"
 import { CreateTimesheetRequest, Timesheet } from "./models/timesheet"
+import { Project } from "./models/project"
+import deleteTimesheet from "../actions/timesheet/deleteTimesheet"
 
 function prepareQueryParams(obj: any): Record<string, string> {
     const params: Record<string, string> = {}
@@ -38,8 +40,16 @@ export class BexioClient {
         return await this.makeRequest(HttpMethod.GET, '/2.0/client_service', prepareQueryParams(params))
     }
 
+    async listProjects(params?: ListParams): Promise<Project[]> {
+        return await this.makeRequest(HttpMethod.GET, '/2.0/pr_project', prepareQueryParams(params))
+    }
+
     async createTimesheet(request: CreateTimesheetRequest): Promise<Timesheet> {
         return await this.makeRequest(HttpMethod.POST, '/2.0/timesheet', undefined, request)
+    }
+
+    async deleteTimesheet(id: number) {
+        await this.makeRequest(HttpMethod.DELETE, '/2.0/timesheet' + id)
     }
 
 }

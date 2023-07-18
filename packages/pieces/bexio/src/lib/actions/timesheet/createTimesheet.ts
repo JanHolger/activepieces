@@ -17,19 +17,30 @@ export default createAction({
         end_date: Property.DateTime({
             displayName: 'End Date',
             required: true
+        }),
+        project_id: bexioCommon.project_id(false),
+        text: Property.LongText({
+            displayName: 'Text',
+            required: false
+        }),
+        billable: Property.Checkbox({
+            displayName: 'Billable',
+            required: false
         })
     },
     async run(context) {
         const client = makeClient(context.auth)
-        const { user_id, client_service_id, start_date, end_date } = context.propsValue
+        const propsValue = context.propsValue
         const timesheet = await client.createTimesheet({
-            user_id: user_id as number,
-            client_service_id: client_service_id as number,
-            allowable_bill: false,
+            user_id: propsValue.user_id as number,
+            client_service_id: propsValue.client_service_id as number,
+            allowable_bill: propsValue.billable ?? false,
+            text: propsValue.text,
+            pr_project_id: propsValue.project_id,
             tracking: {
                 type: 'range',
-                date: dayjs(start_date).toISOString(),
-                end_date: dayjs(end_date).toISOString()
+                start: dayjs(propsValue.start_date).toISOString(),
+                end: dayjs(propsValue.end_date).toISOString()
             }
         })
         return timesheet

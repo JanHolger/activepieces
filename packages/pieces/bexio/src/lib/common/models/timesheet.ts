@@ -31,8 +31,8 @@ export interface TimesheetTrackingDuration {
 
 export interface TimesheetTrackingRange {
     type: 'range',
-    date: string,
-    end_date: string
+    start: string,
+    end: string
 }
 
 export interface CreateTimesheetRequest {

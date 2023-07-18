@@ -60,13 +60,38 @@ export const bexioCommon = {
                 };
             }
             const client = makeClient(auth as OAuth2PropertyValue)
-            const users = await client.listClientServices({ limit: 2000 })
+            const services = await client.listClientServices({ limit: 2000 })
             return {
                 disabled: false,
-                options: users.map((service) => {
+                options: services.map((service) => {
                     return {
                         label: service.name,
                         value: service.id
+                    }
+                })
+            }
+        }
+    }),
+    project_id: (required = true) => Property.Dropdown({
+        displayName: 'Project',
+        required,
+        refreshers: [],
+        options: async ({ auth }) => {
+            if (isNil(auth)) {
+                return {
+                    disabled: true,
+                    placeholder: 'setup authentication first',
+                    options: []
+                };
+            }
+            const client = makeClient(auth as OAuth2PropertyValue)
+            const projects = await client.listProjects({ limit: 2000 })
+            return {
+                disabled: false,
+                options: projects.map((project) => {
+                    return {
+                        label: project.name,
+                        value: project.id
                     }
                 })
             }

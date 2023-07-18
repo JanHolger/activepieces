@@ -29,3 +29,19 @@ export interface Project {
     pr_budget_type_id?: ProjectBudgetType,
     pr_budget_type_amount?: string
 }
+
+export interface CreateProjectRequest {
+    name: string,
+    start_date?: string,
+    end_date?: string,
+    comment?: string,
+    pr_state_id: number,
+    pr_project_type_id: number,
+    contact_id: number,
+    contact_sub_id?: number,
+    pr_invoice_type_id?: ProjectInvoiceType,
+    pr_invoice_type_amount?: string,
+    pr_budget_type_id?: ProjectBudgetType,
+    pr_budget_type_amount?: string,
+    user_id: number
+}
