@@ -13,11 +13,12 @@
         "packageJson": "packages/pieces/instagram-business/package.json",
         "main": "packages/pieces/instagram-business/src/index.ts",
         "assets": ["packages/pieces/instagram-business/*.md"],
-        "buildableProjectDepsInPackageJsonType": "dependencies"
+        "buildableProjectDepsInPackageJsonType": "dependencies",
+        "updateBuildableProjectDepsInPackageJson": true
       }
     },
     "lint": {
-      "executor": "@nx/linter:eslint",
+      "executor": "@nx/eslint:lint",
       "outputs": ["{options.outputFile}"],
       "options": {
         "lintFilePatterns": ["packages/pieces/instagram-business/**/*.ts"]

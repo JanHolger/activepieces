@@ -11,9 +11,9 @@ import { MatSnackBar } from '@angular/material/snack-bar';
 import { Store } from '@ngrx/store';
 import { catchError, map, Observable, of, take, tap } from 'rxjs';
 import {
-  AppConnection,
   AppConnectionType,
-  OAuth2AppConnection,
+  AppConnectionWithoutSensitiveData,
+  OAuth2GrantType,
   UpsertOAuth2Request,
 } from '@activepieces/shared';
 import {
@@ -22,18 +22,23 @@ import {
   PropertyType,
 } from '@activepieces/pieces-framework';
 import deepEqual from 'deep-equal';
-import { environment, fadeInUp400ms } from '@activepieces/ui/common';
+import {
+  AuthenticationService,
+  environment,
+  fadeInUp400ms,
+} from '@activepieces/ui/common';
 import {
   OAuth2PopupParams,
   OAuth2PopupResponse,
 } from '../../models/oauth2-popup-params.interface';
 import { CloudAuthConfigsService } from '../../services/cloud-auth-configs.service';
-import { AppConnectionsService } from '../../services/app-connections.service';
+import { AppConnectionsService } from '@activepieces/ui/common';
 import { ConnectionValidator } from '../../validators/connectionNameValidator';
 import {
   BuilderSelectors,
   appConnectionsActions,
 } from '@activepieces/ui/feature-builder-store';
+import { connectionNameRegex } from '../utils';
 
 interface OAuth2PropertySettings {
   redirect_url: FormControl<string>;
@@ -47,8 +52,8 @@ export const USE_CLOUD_CREDENTIALS = 'USE_CLOUD_CREDENTIALS';
 export interface OAuth2ConnectionDialogData {
   pieceAuthProperty: OAuth2Property<boolean, OAuth2Props>;
   pieceName: string;
-  connectionToUpdate?: OAuth2AppConnection;
-  serverUrl: string;
+  connectionToUpdate?: AppConnectionWithoutSensitiveData;
+  redirectUrl: string;
 }
 
 @Component({
@@ -60,6 +65,7 @@ export interface OAuth2ConnectionDialogData {
 export class OAuth2ConnectionDialogComponent implements OnInit {
   PropertyType = PropertyType;
   readonly FAKE_CODE = 'FAKE_CODE';
+  readonly OAuth2GrantType = OAuth2GrantType;
   settingsForm: FormGroup<OAuth2PropertySettings>;
   loading = false;
   submitted = false;
@@ -74,13 +80,14 @@ export class OAuth2ConnectionDialogComponent implements OnInit {
   keyTooltip =
     'The ID of this authentication definition. You will need to select this key whenever you want to reuse this authentication.';
   hasCloudAuthCred$: Observable<boolean>;
-  upsert$: Observable<AppConnection | null>;
+  upsert$: Observable<AppConnectionWithoutSensitiveData | null>;
   constructor(
     private fb: FormBuilder,
     private store: Store,
     public dialogRef: MatDialogRef<OAuth2ConnectionDialogComponent>,
     private cloudAuthConfigsService: CloudAuthConfigsService,
     private appConnectionsService: AppConnectionsService,
+    private authenticatiionService: AuthenticationService,
     private snackbar: MatSnackBar,
     @Inject(MAT_DIALOG_DATA)
     public dialogData: OAuth2ConnectionDialogData
@@ -96,15 +103,10 @@ export class OAuth2ConnectionDialogComponent implements OnInit {
       );
     const propsControls = this.createPropsFormGroup();
     this.settingsForm = this.fb.group({
-      redirect_url: new FormControl(
-        this.dialogData.serverUrl
-          ? `${this.dialogData.serverUrl}/redirect`
-          : '',
-        {
-          nonNullable: true,
-          validators: [Validators.required],
-        }
-      ),
+      redirect_url: new FormControl(this.dialogData.redirectUrl, {
+        nonNullable: true,
+        validators: [Validators.required],
+      }),
       client_secret: new FormControl('', {
         nonNullable: true,
         validators: [Validators.required],
@@ -121,7 +123,7 @@ export class OAuth2ConnectionDialogComponent implements OnInit {
           nonNullable: true,
           validators: [
             Validators.required,
-            Validators.pattern('[A-Za-z0-9_\\-]*'),
+            Validators.pattern(connectionNameRegex),
           ],
           asyncValidators: [
             ConnectionValidator.createValidator(
@@ -150,25 +152,7 @@ export class OAuth2ConnectionDialogComponent implements OnInit {
       this.settingsForm.controls.name.setValue(
         this.dialogData.connectionToUpdate.name
       );
-      this.settingsForm.controls.client_id.setValue(
-        this.dialogData.connectionToUpdate.value.client_id
-      );
-      this.settingsForm.controls.client_secret.setValue(
-        this.dialogData.connectionToUpdate.value.client_secret
-      );
-      this.settingsForm.controls.redirect_url.setValue(
-        this.dialogData.connectionToUpdate.value.redirect_url
-      );
       this.settingsForm.controls.name.disable();
-      this.settingsForm.controls.redirect_url.disable();
-      this.settingsForm.controls.client_id.disable();
-      this.settingsForm.controls.client_secret.disable();
-      this.dialogData.connectionToUpdate.value.props
-        ? this.settingsForm.controls.props.setValue(
-            this.dialogData.connectionToUpdate.value.props
-          )
-        : null;
-      this.settingsForm.controls.props.disable();
       this.settingsForm.controls.value.setValue({ code: this.FAKE_CODE });
     }
   }
@@ -186,12 +170,17 @@ export class OAuth2ConnectionDialogComponent implements OnInit {
       : this.settingsForm.controls.name.value;
     const { tokenUrl } = this.getTokenAndUrl();
     const newConnection: UpsertOAuth2Request = {
+      projectId: this.authenticatiionService.getProjectId(),
       name: connectionName,
       appName: this.dialogData.pieceName,
+      type: AppConnectionType.OAUTH2,
       value: {
         code: this.settingsForm.controls.value.value.code,
         code_challenge: this.settingsForm.controls.value.value.code_challenge,
         type: AppConnectionType.OAUTH2,
+        grant_type:
+          this.dialogData.pieceAuthProperty.grantType ??
+          OAuth2GrantType.AUTHORIZATION_CODE,
         authorization_method:
           this.dialogData.pieceAuthProperty.authorizationMethod,
         client_id: this.settingsForm.controls.client_id.value,

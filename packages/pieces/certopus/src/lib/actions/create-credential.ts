@@ -143,15 +143,15 @@ export const createCredential = createAction({
       required: true,
       refreshers: ['organisation', 'event', 'category'],
 
-      props: async ({ authentication, organisation, event, category }) => {
-        if (!authentication) return {};
+      props: async ({ auth, organisation, event, category }) => {
+        if (!auth) return {};
         if (!organisation) return {};
         if (!event) return {};
         if (!category) return {};
 
         const fields: DynamicPropsValue = {};
         try {
-          const client = makeClient(authentication.toString());
+          const client = makeClient(auth.toString());
           const recipientFields: RecipientField[] =
             await client.listRecipientFields(
               organisation.toString(),
@@ -203,29 +203,5 @@ export const createCredential = createAction({
     };
     const res = await httpClient.sendRequest(request);
     return res.body;
-  },
-  sampleData: {
-    message: 'success',
-    responses: [
-      {
-        certificateId: 'String',
-        recipient: {
-          id: 'String',
-          email: 'String',
-          data: 'Object',
-        },
-        category: {
-          id: 'String',
-          name: 'String',
-        },
-        eventName: 'String',
-        pdfUrl: 'String',
-        imageUrl: 'String',
-        certificateUrl: 'String',
-        issueDate: 'String',
-        expiryDate: 'String',
-        walletId: 'String',
-      },
-    ],
   },
 });

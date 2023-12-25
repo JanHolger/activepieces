@@ -7,6 +7,7 @@ import {
   EMPTY,
   Observable,
   of,
+  map,
   switchMap,
   tap,
 } from 'rxjs';
@@ -22,11 +23,13 @@ import { UUID } from 'angular2-uuid';
 import { BuilderActions } from '../builder/builder.action';
 import {
   ActionType,
-  Flow,
+  PopulatedFlow,
   FlowOperationRequest,
   FlowOperationType,
   TriggerType,
   flowHelper,
+  FlowVersionState,
+  FlowStatus,
 } from '@activepieces/shared';
 import { RightSideBarType } from '../../model/enums/right-side-bar-type.enum';
 import { LeftSideBarType } from '../../model/enums/left-side-bar-type.enum';
@@ -40,13 +43,21 @@ import {
 import { canvasActions } from '../builder/canvas/canvas.action';
 import { ViewModeActions } from '../builder/viewmode/view-mode.action';
 import { ViewModeEnum } from '../../model';
+import { HttpStatusCode } from '@angular/common/http';
+import { FlowStructureUtil } from '../../utils/flowStructureUtil';
 @Injectable()
 export class FlowsEffects {
   loadInitial$ = createEffect(() => {
     return this.actions$.pipe(
       ofType(BuilderActions.loadInitial),
-      switchMap(({ flow, run, folder }) => {
-        return of(FlowsActions.setInitial({ flow, run, folder }));
+      switchMap(({ flow, run, folder, publishedVersion }) => {
+        return of(
+          FlowsActions.setInitial({
+            flow: { ...flow, publishedFlowVersion: publishedVersion },
+            run,
+            folder,
+          })
+        );
       }),
       catchError((err) => {
         console.error(err);
@@ -55,24 +66,6 @@ export class FlowsEffects {
     );
   });
 
-  replaceEmptyStep = createEffect(() => {
-    return this.actions$.pipe(
-      ofType(FlowsActions.updateAction),
-      concatLatestFrom(() =>
-        this.store.select(BuilderSelectors.selectCurrentStepName)
-      ),
-      switchMap(([action, stepName]) => {
-        if (action.updatingMissingStep) {
-          return of(
-            canvasActions.selectStepByName({
-              stepName: stepName,
-            })
-          );
-        }
-        return EMPTY;
-      })
-    );
-  });
   replaceTrigger = createEffect(() => {
     return this.actions$.pipe(
       ofType(FlowsActions.updateTrigger),
@@ -134,6 +127,26 @@ export class FlowsEffects {
       })
     );
   });
+  moveStep$ = createEffect(() => {
+    return this.actions$.pipe(
+      ofType(FlowsActions.moveAction),
+      concatLatestFrom(() => [
+        this.store.select(BuilderSelectors.selectCurrentRightSideBarType),
+      ]),
+      switchMap(([{ operation }, rightSidebar]) => {
+        if (rightSidebar === RightSideBarType.EDIT_STEP) {
+          return of(
+            canvasActions.setRightSidebar({
+              sidebarType: RightSideBarType.NONE,
+              props: NO_PROPS,
+              deselectCurrentStep: true,
+            })
+          );
+        }
+        return EMPTY;
+      })
+    );
+  });
 
   addStep = createEffect(() => {
     return this.actions$.pipe(
@@ -169,14 +182,6 @@ export class FlowsEffects {
               return of(
                 canvasActions.setRightSidebar({
                   sidebarType: RightSideBarType.TRIGGER_TYPE,
-                  props: NO_PROPS,
-                  deselectCurrentStep: false,
-                })
-              );
-            case ActionType.MISSING:
-              return of(
-                canvasActions.setRightSidebar({
-                  sidebarType: RightSideBarType.STEP_TYPE,
                   props: NO_PROPS,
                   deselectCurrentStep: false,
                 })
@@ -220,24 +225,32 @@ export class FlowsEffects {
         const genSavedId = UUID.UUID();
         let flowOperation: FlowOperationRequest;
         switch (action.type) {
-          case FlowsActionType.UPDATE_TRIGGER:
+          case FlowsActionType.UPDATE_TRIGGER: {
+            const op = FlowStructureUtil.removeAnySubequentStepsFromTrigger(
+              action.operation
+            );
             flowOperation = {
               type: FlowOperationType.UPDATE_TRIGGER,
-              request: action.operation,
+              request: op,
             };
             break;
+          }
           case FlowsActionType.ADD_ACTION:
             flowOperation = {
               type: FlowOperationType.ADD_ACTION,
               request: action.operation,
             };
             break;
-          case FlowsActionType.UPDATE_ACTION:
+          case FlowsActionType.UPDATE_ACTION: {
+            const op = FlowStructureUtil.removeAnySubequentStepsFromAction(
+              action.operation
+            );
             flowOperation = {
               type: FlowOperationType.UPDATE_ACTION,
-              request: action.operation,
+              request: op,
             };
             break;
+          }
           case FlowsActionType.DELETE_ACTION:
             flowOperation = {
               type: FlowOperationType.DELETE_ACTION,
@@ -252,11 +265,22 @@ export class FlowsEffects {
               },
             };
             break;
-          case FlowsActionType.MOVE_ACTION:
+          case FlowsActionType.MOVE_ACTION: {
             flowOperation = {
               type: FlowOperationType.MOVE_ACTION,
               request: action.operation,
             };
+            break;
+          }
+          case FlowsActionType.DUPLICATE_ACTION: {
+            flowOperation = {
+              request: {
+                stepName: action.operation.originalStepName,
+              },
+              type: FlowOperationType.DUPLICATE_ACTION,
+            };
+            break;
+          }
         }
         if (flow) {
           return of(
@@ -287,7 +311,7 @@ export class FlowsEffects {
       })
     );
   });
-  applyUpdateOperationS = createEffect(
+  applyUpdateOperation$ = createEffect(
     () => {
       return this.actions$.pipe(
         ofType(FlowsActions.applyUpdateOperation),
@@ -300,12 +324,21 @@ export class FlowsEffects {
         }),
         catchError((e) => {
           console.error(e);
-          const shownBar = this.snackBar.open(
-            'You have unsaved changes on this page due to network disconnection.',
-            'Refresh',
-            { duration: undefined, panelClass: 'error' }
-          );
-          shownBar.afterDismissed().subscribe(() => location.reload());
+          if (e.status === HttpStatusCode.Conflict) {
+            const shownBar = this.snackBar.open(
+              'The flow was edited by another teammate less than 1 minute ago. Please wait and try again later.',
+              'Refresh',
+              { duration: undefined, panelClass: 'error' }
+            );
+            shownBar.afterDismissed().subscribe(() => location.reload());
+          } else {
+            const shownBar = this.snackBar.open(
+              'You have unsaved changes on this page due to network disconnection.',
+              'Refresh',
+              { duration: undefined, panelClass: 'error' }
+            );
+            shownBar.afterDismissed().subscribe(() => location.reload());
+          }
           return of(FlowsActions.savedFailed(e));
         })
       );
@@ -315,11 +348,11 @@ export class FlowsEffects {
 
   private processFlowUpdate(request: {
     operation: FlowOperationRequest;
-    flow: Flow;
+    flow: PopulatedFlow;
     saveRequestId: UUID;
-  }): Observable<Flow> {
+  }): Observable<PopulatedFlow> {
     const update$ = this.flowService.update(request.flow.id, request.operation);
-    const updateTap = tap((updatedFlow: Flow) => {
+    const updateTap = tap((updatedFlow: PopulatedFlow) => {
       this.store.dispatch(
         FlowsActions.savedSuccess({
           saveRequestId: request.saveRequestId,
@@ -344,6 +377,160 @@ export class FlowsEffects {
     //so in development mode the publish button doesn't flicker constantly and cause us to have epilieptic episodes
     return update$.pipe(delay(150), updateTap);
   }
+
+  publishFailed$ = createEffect(
+    () => {
+      return this.actions$.pipe(
+        ofType(FlowsActions.publishFailed),
+        tap(() => {
+          this.snackBar.open(`Publishing failed`, '', {
+            panelClass: 'error',
+            duration: 5000,
+          });
+        })
+      );
+    },
+    { dispatch: false }
+  );
+
+  publishingSuccess$ = createEffect(
+    () => {
+      return this.actions$.pipe(
+        ofType(FlowsActions.publishSuccess),
+        tap((action) => {
+          if (action.showSnackbar) {
+            this.snackBar.open(`Publishing finished`);
+          }
+        })
+      );
+    },
+    { dispatch: false }
+  );
+
+  publish$ = createEffect(() => {
+    return this.actions$.pipe(
+      ofType(FlowsActions.publish),
+      concatLatestFrom(() =>
+        this.store.select(BuilderSelectors.selectCurrentFlow)
+      ),
+      switchMap(([_, flow]) => {
+        return this.flowService
+          .publish({
+            id: flow.id,
+          })
+          .pipe(
+            map((flow) => {
+              return FlowsActions.publishSuccess({
+                status: flow.status,
+                showSnackbar: true,
+                publishedFlowVersionId: flow.publishedVersionId,
+              });
+            }),
+            catchError((err) => {
+              console.error(err);
+              return of(FlowsActions.publishFailed());
+            })
+          );
+      })
+    );
+  });
+
+  enableInstance$ = createEffect(() => {
+    return this.actions$.pipe(
+      ofType(FlowsActions.enableFlow),
+      concatLatestFrom(() =>
+        this.store.select(BuilderSelectors.selectCurrentFlow)
+      ),
+      switchMap(([_, flow]) => {
+        return this.flowService
+          .updateStatus(flow.id, {
+            status: FlowStatus.ENABLED,
+          })
+          .pipe(
+            switchMap((flow) => {
+              return of(
+                FlowsActions.updateStatusSuccess({
+                  status: flow.status,
+                })
+              );
+            }),
+            catchError((err) => {
+              console.error(err);
+              return of(FlowsActions.publishFailed());
+            })
+          );
+      })
+    );
+  });
+
+  disableInstance$ = createEffect(() => {
+    return this.actions$.pipe(
+      ofType(FlowsActions.disableFlow),
+      concatLatestFrom(() =>
+        this.store.select(BuilderSelectors.selectCurrentFlow)
+      ),
+      switchMap(([_, flow]) => {
+        return this.flowService
+          .updateStatus(flow.id, {
+            status: FlowStatus.DISABLED,
+          })
+          .pipe(
+            switchMap((flow) => {
+              return of(
+                FlowsActions.updateStatusSuccess({
+                  status: flow.status,
+                })
+              );
+            }),
+            catchError((err) => {
+              console.error(err);
+              return of(FlowsActions.publishFailed());
+            })
+          );
+      })
+    );
+  });
+
+  showPublishedVersion$ = createEffect(() => {
+    return this.actions$.pipe(
+      ofType(ViewModeActions.setViewMode),
+      concatLatestFrom(() => [
+        this.store.select(BuilderSelectors.selectPublishedFlowVersion),
+        this.store.select(BuilderSelectors.selectCurrentFlow),
+      ]),
+      switchMap(([action, publishedVersion, currentFlow]) => {
+        switch (action.viewMode) {
+          case ViewModeEnum.SHOW_PUBLISHED:
+            if (publishedVersion) {
+              return of(
+                canvasActions.setInitial({
+                  displayedFlowVersion: publishedVersion,
+                })
+              );
+            } else {
+              throw Error(
+                'Trying to view published version when there is none'
+              );
+            }
+          case ViewModeEnum.BUILDING:
+            if (currentFlow.version.state === FlowVersionState.LOCKED) {
+              throw Error('Trying to view draft version when there is none');
+            } else {
+              return of(
+                canvasActions.setInitial({
+                  displayedFlowVersion: currentFlow.version,
+                })
+              );
+            }
+          case ViewModeEnum.VIEW_INSTANCE_RUN: {
+            throw Error(
+              'Trying to view run version, viewing run version should only be the initial state'
+            );
+          }
+        }
+      })
+    );
+  });
 
   constructor(
     private pieceBuilderService: CollectionBuilderService,

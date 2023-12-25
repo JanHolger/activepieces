@@ -13,11 +13,12 @@
         "packageJson": "packages/pieces/ntfy/package.json",
         "main": "packages/pieces/ntfy/src/index.ts",
         "assets": ["packages/pieces/ntfy/*.md"],
-        "buildableProjectDepsInPackageJsonType": "dependencies"
+        "buildableProjectDepsInPackageJsonType": "dependencies",
+        "updateBuildableProjectDepsInPackageJson": true
       }
     },
     "lint": {
-      "executor": "@nx/linter:eslint",
+      "executor": "@nx/eslint:lint",
       "outputs": ["{options.outputFile}"],
       "options": {
         "lintFilePatterns": ["packages/pieces/ntfy/**/*.ts"]

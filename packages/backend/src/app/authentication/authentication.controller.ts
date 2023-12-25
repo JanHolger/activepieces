@@ -1,49 +1,46 @@
-import { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify'
-import { ApFlagId, SignInRequest, SignUpRequest } from '@activepieces/shared'
-import { authenticationService } from './authentication.service'
-import { flagService } from '../flags/flag.service'
-import { system } from '../helper/system/system'
-import { SystemProp } from '../helper/system/system-prop'
+import { FastifyPluginAsyncTypebox } from '@fastify/type-provider-typebox'
+import { authenticationService } from './authentication-service'
+import { resolvePlatformIdForRequest } from '../ee/platform/lib/platform-utils'
+import { getEdition } from '../helper/secret-helper'
+import { ApEdition, UserStatus, SignUpRequest, SignInRequest, ALL_PRINICPAL_TYPES } from '@activepieces/shared'
 
-export const authenticationController = async (app: FastifyInstance) => {
-    app.post(
-        '/sign-up',
-        {
-            schema: {
-                body: SignUpRequest,
-            },
-        },
-        async (request: FastifyRequest<{ Body: SignUpRequest }>, reply: FastifyReply) => {
-            const userCreated = await flagService.getOne(ApFlagId.USER_CREATED)
-            const signUpEnabled = system.getBoolean(SystemProp.SIGN_UP_ENABLED) ?? false
-            if (userCreated && !signUpEnabled) {
-                reply.code(403).send({
-                    message: 'Sign up is disabled',
-                })
-                return
-            }
-            const authenticationResponse = await authenticationService.signUp(request.body)
-            reply.send(authenticationResponse)
-        },
-    )
+const edition = getEdition()
 
-    app.post(
-        '/sign-in',
-        {
-            schema: {
-                body: SignInRequest,
-            },
-        },
-        async (request: FastifyRequest<{ Body: SignInRequest }>, reply: FastifyReply) => {
-            const authenticationResponse = await authenticationService.signIn(request.body)
-            reply.send(authenticationResponse)
-        },
-    )
+export const authenticationController: FastifyPluginAsyncTypebox = async (app) => {
+    app.post('/sign-up', SignUpRequestOptions, async (request) => {
+        const platformId = await resolvePlatformIdForRequest(request)
 
-    app.get(
-        '/me',
-        async (request: FastifyRequest, reply: FastifyReply) => {
-            reply.send(request.principal)
-        },
-    )
+        return authenticationService.signUp({
+            ...request.body,
+            status: edition === ApEdition.COMMUNITY ? UserStatus.VERIFIED : UserStatus.CREATED,
+            platformId,
+        })
+    })
+
+    app.post('/sign-in', SignInRequestOptions, async (request) => {
+        const platformId = await resolvePlatformIdForRequest(request)
+
+        return authenticationService.signIn({
+            ...request.body,
+            platformId,
+        })
+    })
+}
+
+const SignUpRequestOptions = {
+    config: {
+        allowedPrincipals: ALL_PRINICPAL_TYPES,
+    },
+    schema: {
+        body: SignUpRequest,
+    },
+}
+
+const SignInRequestOptions = {
+    config: {
+        allowedPrincipals: ALL_PRINICPAL_TYPES,
+    },
+    schema: {
+        body: SignInRequest,
+    },
 }

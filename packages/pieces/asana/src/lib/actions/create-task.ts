@@ -1,7 +1,6 @@
 import { asanaCommon, makeClient, resolveTagsByNamesOrIds } from "../common";
 import dayjs from "dayjs";
 import { OAuth2PropertyValue, Property, createAction } from "@activepieces/pieces-framework";
-import { sampleTask } from "../common/samples";
 
 export default createAction({
     auth: asanaCommon.auth,
@@ -29,7 +28,6 @@ export default createAction({
         tags: asanaCommon.tags(false),
         assignee: asanaCommon.assignee(false),
     },
-    sampleData: sampleTask,
     async run(configValue) {
         const { auth } = configValue
         const client = makeClient(auth as OAuth2PropertyValue)

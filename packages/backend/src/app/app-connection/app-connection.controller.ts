@@ -1,99 +1,103 @@
-import { FastifyInstance, FastifyRequest } from 'fastify'
+import {
+    ApId,
+    AppConnection,
+    AppConnectionWithoutSensitiveData,
+    ListAppConnectionsRequestQuery,
+    PrincipalType,
+    SeekPage,
+    UpsertAppConnectionRequestBody,
+} from '@activepieces/shared'
+import { FastifyPluginCallbackTypebox, Type } from '@fastify/type-provider-typebox'
 import { StatusCodes } from 'http-status-codes'
-import { AppConnectionId, AppConnectionValue, ListAppConnectionRequest, UpsertConnectionRequest } from '@activepieces/shared'
-import { ActivepiecesError, ErrorCode } from '@activepieces/shared'
-import { appConnectionService } from './app-connection.service'
+import { appConnectionService } from './app-connection-service/app-connection-service'
+
+export const appConnectionController: FastifyPluginCallbackTypebox = (app, _opts, done) => {
+    app.post('/', UpsertAppConnectionRequest, async (request, reply) => {
+        const appConnection = await appConnectionService.upsert({
+            projectId: request.principal.projectId,
+            request: request.body,
+        })
+
+        await reply.status(StatusCodes.CREATED).send(removeSensitiveData(appConnection))
+    })
+
+
+    app.get('/', ListAppConnectionsRequest, async (request): Promise<SeekPage<AppConnectionWithoutSensitiveData>> => {
+        const { appName, cursor, limit } = request.query
+
+        const appConnections = await appConnectionService.list({
+            projectId: request.principal.projectId,
+            appName,
+            cursorRequest: cursor ?? null,
+            limit: limit ?? DEFAULT_PAGE_SIZE,
+        })
+
+        const appConnectionsWithoutSensitiveData: SeekPage<AppConnectionWithoutSensitiveData> = {
+            ...appConnections,
+            data: appConnections.data.map(removeSensitiveData),
+        }
+
+        return appConnectionsWithoutSensitiveData
+    })
+
+    app.delete('/:id', DeleteAppConnectionRequest, async (request, reply): Promise<void> => {
+        await appConnectionService.delete({
+            id: request.params.id,
+            projectId: request.principal.projectId,
+        })
+        await reply.status(StatusCodes.NO_CONTENT).send()
+    })
+
+    done()
+}
 
 const DEFAULT_PAGE_SIZE = 10
 
-const filterSensitiveData = (connectionValue: AppConnectionValue): Record<string, unknown> => {
-    const sensitiveDataKeys = ['client_secret', 'refresh_token']
-
-    const filteredEntries = Object.entries(connectionValue)
-        .filter(([key]) => !sensitiveDataKeys.includes(key))
-
-    return Object.fromEntries(filteredEntries)
+const removeSensitiveData = (appConnection: AppConnection): AppConnectionWithoutSensitiveData => {
+    const { value: _, ...appConnectionWithoutSensitiveData } = appConnection
+    return appConnectionWithoutSensitiveData as AppConnectionWithoutSensitiveData
 }
 
-export const appConnectionController = async (fastify: FastifyInstance) => {
-
-    fastify.post(
-        '/',
-        {
-            schema: {
-                body: UpsertConnectionRequest,
-            },
+const UpsertAppConnectionRequest = {
+    config: {
+        allowedPrincipals: [PrincipalType.USER, PrincipalType.SERVICE],
+    },
+    schema: {
+        tags: ['app-connections'],
+        description: 'Upsert an app connection based on the app name',
+        body: UpsertAppConnectionRequestBody,
+        Response: {
+            [StatusCodes.CREATED]: AppConnectionWithoutSensitiveData,
         },
-        async (
-            request: FastifyRequest<{
-                Body: UpsertConnectionRequest
-            }>,
-        ) => {
-            const connection = await appConnectionService.upsert({ projectId: request.principal.projectId, request: request.body })
+    },
+}
 
-            return {
-                ...connection,
-                value: filterSensitiveData(connection.value),
-            }
+const ListAppConnectionsRequest = {
+    config: {
+        allowedPrincipals: [PrincipalType.USER, PrincipalType.SERVICE],
+    },
+    schema: {
+        tags: ['app-connections'],
+        querystring: ListAppConnectionsRequestQuery,
+        description: 'List app connections',
+        response: {
+            [StatusCodes.OK]: SeekPage(AppConnectionWithoutSensitiveData),
         },
-    )
+    },
+}
 
-
-    fastify.get(
-        '/:connectionName',
-        async (
-            request: FastifyRequest<{
-                Params: {
-                    connectionName: string
-                }
-            }>,
-        ) => {
-            const appCredential = await appConnectionService.getOne({ projectId: request.principal.projectId, name: request.params.connectionName })
-            if (appCredential === null) {
-                throw new ActivepiecesError({
-                    code: ErrorCode.APP_CONNECTION_NOT_FOUND,
-                    params: { id: request.params.connectionName },
-                })
-            }
-
-            return {
-                ...appCredential,
-                value: filterSensitiveData(appCredential.value),
-            }
+const DeleteAppConnectionRequest = {
+    config: {
+        allowedPrincipals: [PrincipalType.USER, PrincipalType.SERVICE],
+    },
+    schema: {
+        tags: ['app-connections'],
+        description: 'Delete an app connection',
+        params: Type.Object({
+            id: ApId,
+        }),
+        response: {
+            [StatusCodes.NO_CONTENT]: Type.Undefined(),
         },
-    )
-
-    fastify.get(
-        '/',
-        {
-            schema: {
-                querystring: ListAppConnectionRequest,
-            },
-        },
-        async (
-            request: FastifyRequest<{
-                Querystring: ListAppConnectionRequest
-            }>,
-        ) => {
-            const query = request.query
-            return await appConnectionService.list(request.principal.projectId,
-                query.appName,
-                query.cursor ?? null, query.limit ?? DEFAULT_PAGE_SIZE)
-        },
-    )
-
-    fastify.delete(
-        '/:connectionId',
-        async (
-            request: FastifyRequest<{
-                Params: {
-                    connectionId: AppConnectionId
-                }
-            }>,
-            _reply,
-        ) => {
-            await appConnectionService.delete({ id: request.params.connectionId, projectId: request.principal.projectId })
-            _reply.status(StatusCodes.OK).send()
-        },
-    )
+    },
 }

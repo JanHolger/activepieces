@@ -13,11 +13,12 @@
         "packageJson": "packages/pieces/binance/package.json",
         "main": "packages/pieces/binance/src/index.ts",
         "assets": ["packages/pieces/binance/*.md"],
-        "buildableProjectDepsInPackageJsonType": "dependencies"
+        "buildableProjectDepsInPackageJsonType": "dependencies",
+        "updateBuildableProjectDepsInPackageJson": true
       }
     },
     "lint": {
-      "executor": "@nx/linter:eslint",
+      "executor": "@nx/eslint:lint",
       "outputs": ["{options.outputFile}"],
       "options": {
         "lintFilePatterns": ["packages/pieces/binance/**/*.ts"]

@@ -13,11 +13,12 @@
         "packageJson": "packages/pieces/asana/package.json",
         "main": "packages/pieces/asana/src/index.ts",
         "assets": ["packages/pieces/asana/*.md"],
-        "buildableProjectDepsInPackageJsonType": "dependencies"
+        "buildableProjectDepsInPackageJsonType": "dependencies",
+        "updateBuildableProjectDepsInPackageJson": true
       }
     },
     "lint": {
-      "executor": "@nx/linter:eslint",
+      "executor": "@nx/eslint:lint",
       "outputs": ["{options.outputFile}"],
       "options": {
         "lintFilePatterns": ["packages/pieces/asana/**/*.ts"]

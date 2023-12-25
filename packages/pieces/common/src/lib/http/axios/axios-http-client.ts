@@ -8,11 +8,11 @@ import { HttpMethod } from '../core/http-method';
 import { HttpRequest } from '../core/http-request';
 import { HttpResponse } from '../core/http-response';
 
+
 export class AxiosHttpClient extends BaseHttpClient {
 	constructor(
 		baseUrl = '',
 		authenticationConverter: DelegatingAuthenticationConverter = new DelegatingAuthenticationConverter(),
-		private readonly client: AxiosStatic = axios,
 	) {
 		super(baseUrl, authenticationConverter);
 	}
@@ -21,21 +21,24 @@ export class AxiosHttpClient extends BaseHttpClient {
 		request: HttpRequest<HttpMessageBody>
 	): Promise<HttpResponse<ResponseBody>> {
 		try {
-			const url = this.getUrl(request);
+			process.env['NODE_TLS_REJECT_UNAUTHORIZED'] = '0';
+			const { urlWithoutQueryParams, queryParams } = this.getUrl(request);
 			const headers = this.getHeaders(request);
 			const axiosRequestMethod = this.getAxiosRequestMethod(request.method);
-            const timeout = request.timeout ? request.timeout : 0;
+			const timeout = request.timeout ? request.timeout : 0;
+			const config: AxiosRequestConfig = {
+				method: axiosRequestMethod,
+				url: urlWithoutQueryParams,
+				params: {
+					...queryParams,
+					...request.queryParams
+				},
+				headers,
+				data: request.body,
+				timeout
+			};
 
-
-            const config:AxiosRequestConfig = {
-                method: axiosRequestMethod,
-                url,
-                headers,
-                data: request.body,
-                timeout
-            };
-
-            const response = await axios.request(config)
+			const response = await axios.request(config)
 
 			return {
 				status: response.status,
@@ -43,14 +46,14 @@ export class AxiosHttpClient extends BaseHttpClient {
 				body: response.data,
 			};
 		} catch (e) {
+			console.error('[HttpClient#sendRequest] error:', e);
 			if (axios.isAxiosError(e)) {
-                console.error('[HttpClient#sendRequest] error, responseStatus:', e.response?.status);
-                console.error('[HttpClient#sendRequest] error, responseBody:', e.response?.data);
+				console.error('[HttpClient#sendRequest] error, responseStatus:', e.response?.status);
+				console.error('[HttpClient#sendRequest] error, responseBody:', e.response?.data);
 
 				throw new HttpError(request.body, e);
 			}
 
-            console.error('[HttpClient#sendRequest] error:', e);
 			throw e;
 		}
 	}

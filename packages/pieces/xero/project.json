@@ -13,11 +13,12 @@
         "packageJson": "packages/pieces/xero/package.json",
         "main": "packages/pieces/xero/src/index.ts",
         "assets": ["packages/pieces/xero/*.md"],
-        "buildableProjectDepsInPackageJsonType": "dependencies"
+        "buildableProjectDepsInPackageJsonType": "dependencies",
+        "updateBuildableProjectDepsInPackageJson": true
       }
     },
     "lint": {
-      "executor": "@nx/linter:eslint",
+      "executor": "@nx/eslint:lint",
       "outputs": ["{options.outputFile}"],
       "options": {
         "lintFilePatterns": ["packages/pieces/xero/**/*.ts"]

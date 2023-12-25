@@ -13,11 +13,12 @@
         "packageJson": "packages/pieces/schedule/package.json",
         "main": "packages/pieces/schedule/src/index.ts",
         "assets": ["packages/pieces/schedule/*.md"],
-        "buildableProjectDepsInPackageJsonType": "dependencies"
+        "buildableProjectDepsInPackageJsonType": "dependencies",
+        "updateBuildableProjectDepsInPackageJson": true
       }
     },
     "lint": {
-      "executor": "@nx/linter:eslint",
+      "executor": "@nx/eslint:lint",
       "outputs": ["{options.outputFile}"],
       "options": {
         "lintFilePatterns": ["packages/pieces/schedule/**/*.ts"]

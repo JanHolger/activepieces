@@ -11,21 +11,23 @@ import { map, Observable, of, shareReplay, switchMap, tap } from 'rxjs';
 import { Store } from '@ngrx/store';
 import { FormControl } from '@angular/forms';
 import { CdkDragMove } from '@angular/cdk/drag-drop';
-import { ActionType, TriggerType } from '@activepieces/shared';
+import { ActionType, ApFlagId, TriggerType } from '@activepieces/shared';
 import {
   BuilderSelectors,
-  FlowItem,
+  CollectionBuilderService,
+  Step,
   RightSideBarType,
   ViewModeEnum,
 } from '@activepieces/ui/feature-builder-store';
+import { forkJoin } from 'rxjs';
 import {
   TestStepService,
-  PieceMetadataService,
   isOverflown,
-  CORE_SCHEDULE,
+  FlagService,
 } from '@activepieces/ui/common';
 import { TriggerStrategy } from '@activepieces/pieces-framework';
 import { BuilderAutocompleteMentionsDropdownService } from '@activepieces/ui/common';
+import { CORE_SCHEDULE, PieceMetadataService } from 'ui-feature-pieces';
 
 @Component({
   selector: 'app-flow-right-sidebar',
@@ -40,7 +42,7 @@ export class FlowRightSidebarComponent implements OnInit {
   testFormControl: FormControl<string> = new FormControl('', {
     nonNullable: true,
   });
-  currentStep$: Observable<FlowItem | null | undefined>;
+  currentStep$: Observable<Step | null | undefined>;
   editStepSectionRect: DOMRect;
   @ViewChild('editStepSection', { read: ElementRef })
   editStepSection: ElementRef;
@@ -53,9 +55,10 @@ export class FlowRightSidebarComponent implements OnInit {
   isCurrentStepPieceWebhookTrigger$: Observable<boolean>;
   viewMode$: Observable<ViewModeEnum>;
   ViewModeEnum = ViewModeEnum;
+  showDocs$: Observable<boolean>;
   currentStepPieceVersion$: Observable<
     | {
-        version: string;
+        version: string | undefined;
         latest: boolean;
         tooltipText: string;
       }
@@ -66,11 +69,14 @@ export class FlowRightSidebarComponent implements OnInit {
     private ngZone: NgZone,
     private testStepService: TestStepService,
     private renderer2: Renderer2,
+    private flagService: FlagService,
     private pieceMetadaService: PieceMetadataService,
+    public builderService: CollectionBuilderService,
     private builderAutocompleteMentionsDropdownService: BuilderAutocompleteMentionsDropdownService
   ) {}
 
   ngOnInit(): void {
+    this.showDocs$ = this.flagService.isFlagEnabled(ApFlagId.SHOW_DOCS);
     this.checkCurrentStepPieceVersion();
     this.rightSidebarType$ = this.store.select(
       BuilderSelectors.selectCurrentRightSideBarType
@@ -165,27 +171,33 @@ export class FlowRightSidebarComponent implements OnInit {
       );
   }
 
-  private checkCurrentStepPieceVersion() {
+  checkCurrentStepPieceVersion() {
     this.currentStepPieceVersion$ = this.store
       .select(BuilderSelectors.selectCurrentStepPieceVersionAndName)
       .pipe(
         switchMap((res) => {
           if (res) {
-            return this.pieceMetadaService.getPiecesManifest().pipe(
-              map((manifest) => {
-                const piece = manifest.find((p) => p.name === res?.pieceName);
-                if (piece && piece.version === res?.version) {
+            return forkJoin([
+              this.pieceMetadaService.getPieceMetadata(
+                res.pieceName,
+                res.version
+              ),
+              this.pieceMetadaService.getLatestVersion(res.pieceName),
+            ]).pipe(
+              map(([pieceManifest, latestVersion]) => {
+                if (pieceManifest && pieceManifest.version === latestVersion) {
                   return {
-                    version: res.version,
+                    version: pieceManifest.version,
                     latest: true,
-                    tooltipText: `You are using the latest version of ${piece.displayName}. Click to learn more`,
+                    tooltipText: `You are using the latest version of ${pieceManifest.displayName}. Click to learn more`,
                   };
                 }
+
                 return {
-                  version: res.version,
+                  version: pieceManifest.version,
                   latest: false,
                   tooltipText:
-                    `You are using an old version of ${piece?.displayName}. Click to learn more` ||
+                    `You are using an old version of ${pieceManifest?.displayName}. Click to learn more` ||
                     ``,
                 };
               })

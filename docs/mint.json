@@ -5,7 +5,7 @@
     "dark": "./resources/logo/dark.svg",
     "href": "https://www.activepieces.com"
   },
-  "favicon": "/favicon.png",
+  "favicon": "/favicon.svg",
   "colors": {
     "primary": "#5155D7",
     "dark": "#3033A6",
@@ -14,6 +14,7 @@
       "dark": "#121212"
     }
   },
+  "openapi": ["/openapi.json"],
   "metadata": {
     "og:image": "https://uploads-ssl.webflow.com/62c21c5154de255ece48bdf4/62c4ecbe6b2d76719d890ae7_Screenshot%202022-07-06%20at%2004.59.45-p-2600.png",
     "description": "Open source alternative to zapier"
@@ -35,170 +36,126 @@
   ],
   "anchors": [
     {
-      "name": "Pieces",
-      "icon": "plug",
-      "url": "pieces"
-    },
-    {
-      "name": "Developers",
-      "icon": "code",
-      "url": "developers"
-    },
-    {
       "name": "Discord",
       "icon": "discord",
       "url": "https://discord.gg/2jUXBKDdP8"
+    },
+    {
+      "name": "Pieces",
+      "icon": "plug",
+      "url": "https://www.activepieces.com/pieces"
+    }
+  ],
+  "primaryTab": {
+    "name": "Learn"
+  },
+  "tabs": [
+    {
+      "name": "Develop Pieces",
+      "url": "developers"
+    },
+    {
+      "name": "Deploy",
+      "url": "install"
+    },
+    {
+      "name": "API",
+      "url": "endpoints"
     }
   ],
   "navigation": [
     {
-      "group": "Introduction",
+      "group": "Getting Started",
       "pages": [
-        "getting-started/introduction"
+        "getting-started/introduction",
+        "getting-started/principles"
       ]
     },
-    {
-      "group": "Pieces",
-      "pages": [
-        "pieces/overview",
-        "pieces/custom-pieces",
-        "pieces/versioning"
-      ]
-    },
-    {
-      "group": "Apps",
-      "pages": [
-        "pieces/apps/airtable",
-        "pieces/apps/amazon-s3",
-        "pieces/apps/asana",
-        "pieces/apps/bannerbear",
-        "pieces/apps/binance",
-        "pieces/apps/blackbaud",
-        "pieces/apps/bloomerang",
-        "pieces/apps/cal-com",
-        "pieces/apps/calendly",
-        "pieces/apps/certopus",
-        "pieces/apps/clickup",
-        "pieces/apps/clockodo",
-        "pieces/apps/connections",
-        "pieces/apps/constant-contact",
-        "pieces/apps/csv",
-        "pieces/apps/data-mapper",
-        "pieces/apps/delay",
-        "pieces/apps/discord",
-        "pieces/apps/drip",
-        "pieces/apps/dropbox",
-        "pieces/apps/facebook-leads",
-        "pieces/apps/facebook-pages",
-        "pieces/apps/figma",
-        "pieces/apps/freshsales",
-        "pieces/apps/generatebanners",
-        "pieces/apps/github",
-        "pieces/apps/gmail",
-        "pieces/apps/google-calendar",
-        "pieces/apps/google-contacts",
-        "pieces/apps/google-docs",
-        "pieces/apps/google-drive",
-        "pieces/apps/google-forms",
-        "pieces/apps/google-sheets",
-        "pieces/apps/google-tasks",
-        "pieces/apps/gotify",
-        "pieces/apps/hackernews",
-        "pieces/apps/http",
-        "pieces/apps/hubspot",
-        "pieces/apps/imap",
-        "pieces/apps/instagram-business",
-        "pieces/apps/intercom",
-        "pieces/apps/jotform",
-        "pieces/apps/kizeo-forms",
-        "pieces/apps/linkedin",
-        "pieces/apps/mailchimp",
-        "pieces/apps/mailer-lite",
-        "pieces/apps/mastodon",
-        "pieces/apps/matrix",
-        "pieces/apps/mattermost",
-        "pieces/apps/mautic",
-        "pieces/apps/mindee",
-        "pieces/apps/monday",
-        "pieces/apps/mysql",
-        "pieces/apps/notion",
-        "pieces/apps/ntfy",
-        "pieces/apps/openai",
-        "pieces/apps/pastebin",
-        "pieces/apps/pastefy",
-        "pieces/apps/pipedrive",
-        "pieces/apps/postgres",
-        "pieces/apps/posthog",
-        "pieces/apps/pushover",
-        "pieces/apps/resend",
-        "pieces/apps/rss",
-        "pieces/apps/salesforce",
-        "pieces/apps/salsa",
-        "pieces/apps/schedule",
-        "pieces/apps/sendgrid",
-        "pieces/apps/sendinblue",
-        "pieces/apps/sftp",
-        "pieces/apps/shopify",
-        "pieces/apps/slack",
-        "pieces/apps/smtp",
-        "pieces/apps/spotify",
-        "pieces/apps/square",
-        "pieces/apps/stability-ai",
-        "pieces/apps/store",
-        "pieces/apps/stripe",
-        "pieces/apps/telegram-bot",
-        "pieces/apps/todoist",
-        "pieces/apps/trello",
-        "pieces/apps/twilio",
-        "pieces/apps/twitter",
-        "pieces/apps/typeform",
-        "pieces/apps/vtex",
-        "pieces/apps/webflow",
-        "pieces/apps/wordpress",
-        "pieces/apps/xero",
-        "pieces/apps/xml",
-        "pieces/apps/youtube",
-        "pieces/apps/zendesk",
-        "pieces/apps/zoho-crm",
-        "pieces/apps/zoom"
-      ]
-    },
-    {
-      "group": "Helpers",
-      "pages": [
-        "pieces/helpers/code"
-      ]
-    },
-    {
-      "group": "Flow Controls",
-      "pages": [
-        "pieces/flow-controls/loop",
-        "pieces/flow-controls/branch"
-      ]
-    },
-    {
-      "group": "Self Host",
-      "pages": [
-        {
-          "group": "Install Options",
-          "icon": "server",
+       {
+        "group": "Get Started",
+        "pages": [
+          "endpoints/overview"
+        ]
+       },
+       {
+          "group": "Endpoints",
           "pages": [
-            "install/options/overview",
-            "install/options/docker",
-            "install/options/easypanel"
+            {
+              "group": "Projects",
+              "icon": "building",
+              "pages": [
+                "endpoints/projects/schema",
+                "endpoints/projects/create",
+                "endpoints/projects/update",
+                "endpoints/projects/list"
+
+              ]
+            },
+            {
+              "group": "Project Members",
+              "icon": "user",
+              "pages": [
+                "endpoints/project-members/schema",
+                "endpoints/project-members/create",
+                "endpoints/project-members/list",
+                "endpoints/project-members/delete"
+              ]
+            },
+            {
+              "group": "Connections",
+              "icon": "link",
+              "pages": [
+                "endpoints/connections/schema",
+                "endpoints/connections/upsert",
+                "endpoints/connections/list",
+                "endpoints/connections/delete"
+              ]
+            }
           ]
         },
-        "install/configurations",
-        "install/breaking-changes"
+    {
+      "group": "Flows",
+      "pages": [
+        "flows/building-flows",
+        "flows/passing-data",
+        "flows/publishing-flows",
+        "flows/debugging-runs",
+        "flows/code"
       ]
     },
     {
-      "group": "Building Flow",
+      "group": "Security",
       "pages": [
-        "building-flows/building-flow",
-        "building-flows/passing-data",
-        "building-flows/publishing-flow",
-        "building-flows/debugging"
+        "security/permissions",
+        "security/sso"
+      ]
+    },
+    {
+      "group": "Get Started",
+      "pages": [
+        "install/options/overview",
+        "install/options/docker",
+        "install/options/docker-compose",
+        "install/options/easypanel",
+        "install/options/aws",
+        "install/options/gcp"
+      ]
+    },
+    {
+      "group": "Reference",
+      "pages": [
+        {
+          "group": "Configurations",
+          "icon": "gear",
+          "pages": [
+            "install/configurations/environment-variables",
+            "install/configurations/error-notifications"
+          ]
+        },
+        "install/setup-ssl",
+        "install/architecture",
+        "install/enterprise",
+        "install/troubleshooting"
       ]
     },
     {
@@ -210,9 +167,10 @@
     {
       "group": "Tutorials",
       "pages": [
+        "developers/setup-fork",
         {
-          "group": "Development Setup",
-          "icon": "circle-1",
+          "group": "Development Environment",
+          "icon": "circle-2",
           "pages": [
             "developers/development-setup/getting-started",
             "developers/development-setup/codespaces",
@@ -223,14 +181,23 @@
         "developers/building-pieces/create-action",
         {
           "group": "Create Triggers",
-          "icon": "circle-3",
+          "icon": "circle-4",
           "pages": [
             "developers/building-pieces/triggers/overview",
             "developers/building-pieces/triggers/create-polling-trigger",
             "developers/building-pieces/triggers/create-webhook-trigger"
           ]
         },
-        "developers/building-pieces/publish-piece"
+        {
+          "group": "Sharing Pieces",
+          "icon": "circle-5",
+          "pages": [
+            "developers/sharing-pieces/overview",
+            "developers/sharing-pieces/contribute",
+            "developers/sharing-pieces/community",
+            "developers/sharing-pieces/private"
+          ]
+        }
       ]
     },
     {
@@ -238,8 +205,11 @@
       "pages": [
         "developers/piece-reference/authentication",
         "developers/piece-reference/properties",
+        "developers/piece-reference/properties-validation",
         "developers/piece-reference/flow-control",
         "developers/piece-reference/persistent-storage",
+        "developers/piece-reference/files",
+        "developers/piece-reference/external-libraries",
         "developers/piece-reference/piece-versioning",
         "developers/piece-reference/examples"
       ]
@@ -253,20 +223,44 @@
       ]
     },
     {
-      "group": "Other",
+      "group": "Platform",
       "pages": [
-        "telemetry",
-        "changelog",
-        "license",
+        "platform/overview",
+        "platform/appearance",
+        "platform/manage-projects",
+        "platform/custom-domain",
+        "platform/manage-pieces",
+        "platform/manage-oauth2",
+        "platform/customize-emails",
+        "platform/managed-users",
+        "platform/embedding"
+      ]
+    },
+    {
+      "group": "Enterprise Edition",
+      "pages": [
+        "enterprise/whitelabel",
+        "enterprise/environments",
         {
-          "group": "Product Embed",
+          "group": "Connection Cards",
+          "icon": "cards-blank",
           "pages": [
-            "product-embed/overview",
-            "product-embed/user-authentication",
-            "product-embed/frontend-sdk",
-            "product-embed/user-flows"
+            "enterprise/connection-cards/overview",
+            "enterprise/connection-cards/user-authentication",
+            "enterprise/connection-cards/frontend-sdk",
+            "enterprise/connection-cards/user-flows"
           ]
         }
+      ]
+    },
+    {
+      "group": "About",
+      "pages": [
+        "about/i18n",
+        "about/editions",
+        "about/changelog",
+        "about/telemetry",
+        "about/license"
       ]
     }
   ],

@@ -13,11 +13,12 @@
         "packageJson": "packages/pieces/clickup/package.json",
         "main": "packages/pieces/clickup/src/index.ts",
         "assets": ["packages/pieces/clickup/*.md"],
-        "buildableProjectDepsInPackageJsonType": "dependencies"
+        "buildableProjectDepsInPackageJsonType": "dependencies",
+        "updateBuildableProjectDepsInPackageJson": true
       }
     },
     "lint": {
-      "executor": "@nx/linter:eslint",
+      "executor": "@nx/eslint:lint",
       "outputs": ["{options.outputFile}"],
       "options": {
         "lintFilePatterns": ["packages/pieces/clickup/**/*.ts"]

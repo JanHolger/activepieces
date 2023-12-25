@@ -1,18 +1,21 @@
 import {
+  Action,
   ActionType,
   BranchAction,
   LoopOnItemsAction,
   Trigger,
+  UpdateActionRequest,
+  UpdateTriggerRequest,
   flowHelper,
 } from '@activepieces/shared';
-import { FlowItem } from '../model/flow-item';
+import { Step, StepWithIndex } from '../model/step';
 
 // TODO REMOVE THIS FILE AND REPLACE IT WITH FUNCTIONS IN flowHelper.ts
 export class FlowStructureUtil {
   private static _findPathToStep(
-    stepToFind: FlowItem,
-    stepToSearch: FlowItem | undefined
-  ): FlowItem[] | undefined {
+    stepToFind: Step,
+    stepToSearch: Step | undefined
+  ): Step[] | undefined {
     if (stepToSearch === undefined) {
       return undefined;
     }
@@ -58,9 +61,9 @@ export class FlowStructureUtil {
   }
 
   public static findPathToStep(
-    stepToFind: FlowItem,
+    stepToFind: Step,
     trigger: Trigger
-  ): FlowItem[] {
+  ): StepWithIndex[] {
     if (stepToFind.name === trigger.name) {
       return [];
     }
@@ -74,12 +77,39 @@ export class FlowStructureUtil {
         indexInDfsTraversal: FlowStructureUtil.findStepIndex(trigger, f.name),
       };
     });
-    return [trigger, ...pathWithIndex];
+    return [{ ...trigger, indexInDfsTraversal: 1 }, ...pathWithIndex];
   }
 
   public static findStepIndex(trigger: Trigger, stepName: string) {
     return (
       flowHelper.getAllSteps(trigger).findIndex((f) => stepName === f.name) + 1
     );
+  }
+
+  public static removeAnySubequentStepsFromTrigger<T extends Trigger>(
+    req: T
+  ): UpdateTriggerRequest {
+    const clone: Trigger = JSON.parse(JSON.stringify(req));
+    if (clone.nextAction) clone.nextAction = undefined;
+    return clone;
+  }
+
+  public static removeAnySubequentStepsFromAction(
+    req: Action
+  ): UpdateActionRequest {
+    const clone: Action = JSON.parse(JSON.stringify(req));
+    if (clone.nextAction) clone.nextAction = undefined;
+    switch (clone.type) {
+      case ActionType.BRANCH: {
+        clone.onFailureAction = undefined;
+        clone.onSuccessAction = undefined;
+        break;
+      }
+      case ActionType.LOOP_ON_ITEMS: {
+        clone.firstLoopAction = undefined;
+        break;
+      }
+    }
+    return clone;
   }
 }

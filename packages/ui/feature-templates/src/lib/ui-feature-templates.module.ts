@@ -6,22 +6,26 @@ import { TemplateAppsDropdownComponent } from './templates-dialog/template-apps-
 import { TemplateAppTagContainerComponent } from './templates-dialog/template-apps-dropdown/template-app-tag-container/template-app-tag-container.component';
 import { TemplateCardComponent } from './template-card/template-card.component';
 import { UiCommonModule } from '@activepieces/ui/common';
-import { TemplatesContainerComponent } from './templates-container/templates-container.component';
 import { TemplateBlogNotificationComponent } from './template-blog-notification/template-blog-notification.component';
-import { NewFlowCardComponent } from './new-flow-card/new-flow-card.component';
+import { FeaturedTemplateCardComponent } from './featured-template-card/featured-template-card.component';
+import { TimeagoModule } from 'ngx-timeago';
+import { UiFeaturePiecesModule } from 'ui-feature-pieces';
 const exportedDeclarations = [
   TemplatesDialogComponent,
   TemplatesFiltersComponent,
   TemplateAppsDropdownComponent,
   TemplateAppTagContainerComponent,
   TemplateCardComponent,
-  TemplatesContainerComponent,
   TemplateBlogNotificationComponent,
-  NewFlowCardComponent,
 ];
 @NgModule({
-  imports: [CommonModule, UiCommonModule],
-  declarations: exportedDeclarations,
+  imports: [
+    CommonModule,
+    UiCommonModule,
+    UiFeaturePiecesModule,
+    TimeagoModule.forChild(),
+  ],
+  declarations: [...exportedDeclarations, FeaturedTemplateCardComponent],
   exports: exportedDeclarations,
 })
 export class UiFeatureTemplatesModule {}

@@ -31,25 +31,25 @@ import {
   of,
   shareReplay,
   startWith,
+  take,
+  forkJoin,
   switchMap,
   tap,
 } from 'rxjs';
 import deepEqual from 'deep-equal';
-import { CodemirrorComponent } from '@ctrl/ngx-codemirror';
 import {
   DropdownProperty,
   DropdownState,
   DynamicProperties,
   MultiSelectDropdownProperty,
-  PieceProperty,
   PiecePropertyMap,
   PropertyType,
 } from '@activepieces/pieces-framework';
 import {
   jsonValidator,
   fadeInUp400ms,
-  PieceMetadataService,
   InsertMentionOperation,
+  FlagService,
 } from '@activepieces/ui/common';
 import {
   BuilderSelectors,
@@ -60,6 +60,8 @@ import {
 import { InterpolatingTextFormControlComponent } from '../interpolating-text-form-control/interpolating-text-form-control.component';
 import { PiecePropertiesFormValue } from '../models/piece-properties-form-value';
 import { AddEditConnectionButtonComponent } from '@activepieces/ui/feature-connections';
+import { PackageType, PieceType } from '@activepieces/shared';
+import { PieceMetadataService } from 'ui-feature-pieces';
 
 type ConfigKey = string;
 
@@ -97,27 +99,30 @@ export class PiecePropertiesFormComponent implements ControlValueAccessor {
   refreshableConfigsLoadingFlags$: {
     [key: ConfigKey]: BehaviorSubject<boolean>;
   } = {};
-
+  descriptionOverflownMap: Record<string, boolean> = {};
+  descriptionExpandedMap: Record<string, boolean> = {};
   allAuthConfigs$: Observable<ConnectionDropdownItem[]>;
   configDropdownChanged$: Observable<unknown>;
   cloudAuthCheck$: Observable<void>;
-  editorOptions = {
-    lineNumbers: true,
-    theme: 'lucario',
-    lineWrapping: true,
-    matchBrackets: true,
-    gutters: ['CodeMirror-lint-markers'],
-    mode: 'application/json',
-    lint: true,
+  codeEditorOptions = {
+    minimap: { enabled: false },
+    theme: 'cobalt2',
+    language: 'json',
+    readOnly: false,
+    automaticLayout: true,
+    contextmenu: false,
+    formatOnPaste: false,
+    formatOnType: false,
   };
   customizedInputs: Record<string, boolean> | undefined;
   checkingOAuth2CloudManager = false;
   properties: PiecePropertyMap = {};
   requiredProperties: PiecePropertyMap = {};
-  allOptionalProperties: PiecePropertyMap = {};
-  selectedOptionalProperties: PiecePropertyMap = {};
+  optionalProperties: PiecePropertyMap = {};
   optionalConfigsMenuOpened = false;
   @Input() actionOrTriggerName: string;
+  @Input() packageType: PackageType;
+  @Input() pieceType: PieceType;
   @Input() pieceName: string;
   @Input() pieceVersion: string;
   @Input() pieceDisplayName: string;
@@ -130,11 +135,12 @@ export class PiecePropertiesFormComponent implements ControlValueAccessor {
   setDefaultValue$: Observable<null>;
   OnChange: (value: unknown) => void;
   OnTouched: () => void;
-
+  jsonMonacoEditor: any;
   constructor(
     private fb: UntypedFormBuilder,
     private actionMetaDataService: PieceMetadataService,
     private store: Store,
+    private flagService: FlagService,
     private codeService: CodeService,
     private cd: ChangeDetectorRef
   ) {
@@ -145,6 +151,8 @@ export class PiecePropertiesFormComponent implements ControlValueAccessor {
   writeValue(obj: PiecePropertiesFormValue): void {
     this.properties = obj.properties;
     this.customizedInputs = obj.customizedInputs;
+    this.descriptionExpandedMap = {};
+    this.descriptionOverflownMap = {};
     this.createForm(obj.propertiesValues);
     if (obj.setDefaultValues) {
       this.setDefaultValue$ = of(null).pipe(
@@ -176,17 +184,11 @@ export class PiecePropertiesFormComponent implements ControlValueAccessor {
   }
   createForm(propertiesValues: Record<string, unknown>) {
     this.requiredProperties = {};
-    this.allOptionalProperties = {};
-    this.selectedOptionalProperties = {};
+    this.optionalProperties = {};
     Object.entries(this.properties).forEach(([pk]) => {
-      if (this.properties[pk].required) {
-        this.requiredProperties[pk] = this.properties[pk];
-      } else {
-        this.allOptionalProperties[pk] = this.properties[pk];
-        if (propertiesValues[pk] !== undefined) {
-          this.selectedOptionalProperties[pk] = this.properties[pk];
-        }
-      }
+      this.properties[pk].required
+        ? (this.requiredProperties[pk] = this.properties[pk])
+        : (this.optionalProperties[pk] = this.properties[pk]);
     });
 
     const requiredConfigsControls = this.createConfigsFormControls(
@@ -194,7 +196,7 @@ export class PiecePropertiesFormComponent implements ControlValueAccessor {
       propertiesValues
     );
     const optionalConfigsControls = this.createConfigsFormControls(
-      this.selectedOptionalProperties,
+      this.optionalProperties,
       propertiesValues
     );
 
@@ -225,10 +227,18 @@ export class PiecePropertiesFormComponent implements ControlValueAccessor {
         property.type === PropertyType.MULTI_SELECT_DROPDOWN
       ) {
         this.dropdownOptionsObservables$[pk] =
-          this.createRefreshableConfigObservables<DropdownState<unknown>>({
-            property: property,
-            propertyKey: pk,
-          }).pipe(
+          this.createRefreshableConfigObservables<DropdownState<unknown>>(
+            {
+              property: property,
+              propertyKey: pk,
+            },
+            {
+              options: [],
+              disabled: true,
+              placeholder:
+                'An unexpected error occured please contact our support',
+            }
+          ).pipe(
             map((res) => {
               if (res.options.length === 0) {
                 const emptyDropdownState: DropdownState<unknown> = {
@@ -259,10 +269,13 @@ export class PiecePropertiesFormComponent implements ControlValueAccessor {
       const parentProperty = this.properties[pk];
       if (parentProperty.type == PropertyType.DYNAMIC) {
         this.dynamicPropsObservables$[pk] =
-          this.createRefreshableConfigObservables<PiecePropertyMap>({
-            property: parentProperty,
-            propertyKey: pk,
-          }).pipe(
+          this.createRefreshableConfigObservables<PiecePropertyMap>(
+            {
+              property: parentProperty,
+              propertyKey: pk,
+            },
+            {}
+          ).pipe(
             tap((res) => {
               const fg = this.form.get(pk) as UntypedFormGroup;
               if (fg) {
@@ -302,13 +315,16 @@ export class PiecePropertiesFormComponent implements ControlValueAccessor {
 
   createRefreshableConfigObservables<
     T extends DropdownState<unknown> | PiecePropertyMap
-  >(obj: {
-    property:
-      | DynamicProperties<boolean>
-      | MultiSelectDropdownProperty<unknown, boolean>
-      | DropdownProperty<unknown, boolean>;
-    propertyKey: string;
-  }) {
+  >(
+    obj: {
+      property:
+        | DynamicProperties<boolean>
+        | MultiSelectDropdownProperty<unknown, boolean>
+        | DropdownProperty<unknown, boolean>;
+      propertyKey: string;
+    },
+    fallbackObject: T
+  ) {
     this.refreshableConfigsLoadingFlags$[obj.propertyKey] = new BehaviorSubject(
       true
     );
@@ -332,6 +348,11 @@ export class PiecePropertiesFormComponent implements ControlValueAccessor {
           }
           return JSON.stringify(prev) === JSON.stringify(curr);
         }),
+        tap(() => {
+          if (obj.property.type !== PropertyType.DYNAMIC) {
+            this.form.controls[obj.propertyKey].setValue(undefined);
+          }
+        }),
         startWith(this.form.controls[rk].value),
         tap(() => {
           this.refreshableConfigsLoadingFlags$[obj.propertyKey].next(true);
@@ -344,17 +365,22 @@ export class PiecePropertiesFormComponent implements ControlValueAccessor {
     }
     return combineLatest(refreshers$).pipe(
       switchMap((res) => {
-        return this.actionMetaDataService.getPieceActionConfigOptions<T>({
-          pieceVersion: this.pieceVersion,
-          pieceName: this.pieceName,
-          propertyName: obj.propertyKey,
-          stepName: this.actionOrTriggerName,
-          input: res,
-        });
-      }),
-      catchError((err) => {
-        console.error(err);
-        throw err;
+        return this.actionMetaDataService
+          .getPieceActionConfigOptions<T>({
+            packageType: this.packageType,
+            pieceType: this.pieceType,
+            pieceVersion: this.pieceVersion,
+            pieceName: this.pieceName,
+            propertyName: obj.propertyKey,
+            stepName: this.actionOrTriggerName,
+            input: res,
+          })
+          .pipe(
+            catchError((err) => {
+              console.error(err);
+              return of(fallbackObject);
+            })
+          );
       }),
       tap(() => {
         this.refreshableConfigsLoadingFlags$[obj.propertyKey].next(false);
@@ -373,61 +399,142 @@ export class PiecePropertiesFormComponent implements ControlValueAccessor {
       const validators: ValidatorFn[] = [];
       const prop = properties[pk];
       const propValue = propertiesValues[pk];
-      if (
-        prop.required &&
-        prop.type !== PropertyType.OBJECT &&
-        prop.type !== PropertyType.ARRAY
-      ) {
-        validators.push(Validators.required);
-      }
-      if (prop.type === PropertyType.OBJECT) {
-        controls[pk] = new UntypedFormControl(
-          propValue || prop.defaultValue || {},
-          validators
-        );
-      } else if (prop.type === PropertyType.ARRAY) {
-        controls[pk] = new UntypedFormControl(
-          propValue || prop.defaultValue || [''],
-          validators
-        );
-      } else if (prop.type === PropertyType.JSON) {
-        if (!this.customizedInputs || !this.customizedInputs[pk]) {
-          validators.push(jsonValidator);
-        }
-        if (typeof propValue === 'object') {
-          controls[pk] = new UntypedFormControl(
-            JSON.stringify(propValue || prop.defaultValue, null, 2),
-            validators
-          );
-        } else {
-          controls[pk] = new UntypedFormControl(
-            propertiesValues[pk] ||
-              JSON.stringify(prop.defaultValue ?? {}, null, 2),
-            validators
-          );
-        }
-      } else if (prop.type === PropertyType.DYNAMIC) {
-        const dynamicConfigControls: Record<string, UntypedFormControl> = {};
-        if (propValue) {
-          Object.keys(propValue).forEach((k) => {
-            dynamicConfigControls[k] = new UntypedFormControl(
-              (propValue as Record<string, unknown>)[k]
-            );
-          });
-        } else {
-          controls[pk] = new UntypedFormControl(
-            propValue || prop.defaultValue || '{}',
-            validators
-          );
-        }
-        controls[pk] = this.fb.group(dynamicConfigControls);
-      } else {
-        controls[pk] = new UntypedFormControl(
-          propValue === undefined || propValue === null
+      switch (prop.type) {
+        case PropertyType.ARRAY: {
+          const controlValue = propValue
+            ? propValue
+            : Array.isArray(prop.defaultValue) && prop.defaultValue.length > 0
             ? prop.defaultValue
-            : propValue,
-          validators
-        );
+            : [];
+          controls[pk] = new UntypedFormControl(controlValue);
+          break;
+        }
+        case PropertyType.MARKDOWN: {
+          break;
+        }
+        case PropertyType.OBJECT: {
+          const controlValue = propValue
+            ? propValue
+            : typeof prop.defaultValue === 'object'
+            ? prop.defaultValue
+            : {};
+          controls[pk] = new UntypedFormControl(controlValue);
+          break;
+        }
+        case PropertyType.BASIC_AUTH:
+        case PropertyType.CUSTOM_AUTH:
+        case PropertyType.OAUTH2:
+        case PropertyType.SECRET_TEXT: {
+          if (prop.required) {
+            validators.push(Validators.required);
+          }
+          controls[pk] = new UntypedFormControl(propValue, validators);
+          break;
+        }
+        case PropertyType.CHECKBOX: {
+          controls[pk] = new UntypedFormControl(
+            propValue || prop.defaultValue || false
+          );
+          break;
+        }
+        case PropertyType.DATE_TIME:
+        case PropertyType.FILE:
+        case PropertyType.LONG_TEXT:
+        case PropertyType.NUMBER:
+        case PropertyType.SHORT_TEXT: {
+          if (prop.required) {
+            validators.push(Validators.required);
+          }
+          if (typeof prop.defaultValue !== 'object') {
+            const defaultValue = prop.defaultValue
+              ? prop.defaultValue.toString()
+              : '';
+            controls[pk] = new UntypedFormControl(
+              propValue ?? defaultValue,
+              validators
+            );
+          } else {
+            const defaultValue = prop.defaultValue
+              ? prop.defaultValue.base64
+              : '';
+            controls[pk] = new UntypedFormControl(
+              propValue ?? defaultValue,
+              validators
+            );
+          }
+
+          break;
+        }
+        case PropertyType.STATIC_DROPDOWN:
+        case PropertyType.STATIC_MULTI_SELECT_DROPDOWN: {
+          if (prop.required) {
+            validators.push(Validators.required);
+          }
+          controls[pk] = new UntypedFormControl(
+            propValue ?? prop.defaultValue,
+            validators
+          );
+          break;
+        }
+        case PropertyType.DROPDOWN:
+        case PropertyType.MULTI_SELECT_DROPDOWN: {
+          if (prop.required) {
+            validators.push(Validators.required);
+          }
+          controls[pk] = new UntypedFormControl(
+            propValue ?? prop.defaultValue,
+            validators
+          );
+          break;
+        }
+        case PropertyType.DYNAMIC: {
+          const dynamicConfigControls: Record<string, UntypedFormControl> = {};
+          if (propValue) {
+            Object.keys(propValue).forEach((k) => {
+              dynamicConfigControls[k] = new UntypedFormControl(
+                (propValue as Record<string, unknown>)[k]
+              );
+            });
+          } else {
+            controls[pk] = new UntypedFormControl(
+              propValue ?? (prop.defaultValue || '{}'),
+              validators
+            );
+          }
+          controls[pk] = this.fb.group(dynamicConfigControls);
+          break;
+        }
+        case PropertyType.JSON: {
+          if (prop.required) {
+            validators.push(Validators.required);
+          }
+          if (!this.customizedInputs || !this.customizedInputs[pk]) {
+            validators.push(jsonValidator);
+          }
+          if (typeof propValue === 'object') {
+            controls[pk] = new UntypedFormControl(
+              JSON.stringify(propValue, null, 2),
+              validators
+            );
+          } else if (propValue) {
+            controls[pk] = new UntypedFormControl(
+              propertiesValues[pk],
+              validators
+            );
+          } else {
+            controls[pk] = new UntypedFormControl(
+              prop.defaultValue
+                ? JSON.stringify(prop.defaultValue, null, 2)
+                : '',
+              validators
+            );
+          }
+          break;
+        }
+        default: {
+          const exhaustiveCheck: never = prop;
+          console.error(`Unhandled color case: ${exhaustiveCheck}`);
+        }
       }
     });
     return controls;
@@ -436,47 +543,9 @@ export class PiecePropertiesFormComponent implements ControlValueAccessor {
     return this.form.get(configKey);
   }
 
-  removeConfig(propertyKey: string) {
-    this.form.removeControl(propertyKey);
-    const newSelectedOptionalConfigsObj: PiecePropertyMap = {};
-    Object.keys(this.selectedOptionalProperties).forEach((k) => {
-      if (k !== propertyKey) {
-        newSelectedOptionalConfigsObj[k] = {
-          ...this.selectedOptionalProperties[k],
-        };
-      }
-    });
-    this.selectedOptionalProperties = newSelectedOptionalConfigsObj;
-  }
-
-  addOptionalProperty(propertyKey: string, property: PieceProperty) {
-    if (property.type !== PropertyType.JSON) {
-      this.form.addControl(
-        propertyKey,
-        new UntypedFormControl(
-          property.defaultValue ? property.defaultValue : undefined
-        )
-      );
-    } else {
-      this.form.addControl(
-        propertyKey,
-        new UntypedFormControl(
-          property.defaultValue
-            ? JSON.stringify(property.defaultValue, null, 2)
-            : '',
-          [jsonValidator]
-        )
-      );
-    }
-    this.selectedOptionalProperties = {
-      ...this.selectedOptionalProperties,
-      [propertyKey]: property,
-    };
-  }
-
   connectionValueChanged(event: {
     propertyKey: string;
-    value: `{{connections.${string}}}`;
+    value: `{{connections['${string}']}}`;
   }) {
     this.form.get(event.propertyKey)!.setValue(event.value.toString());
   }
@@ -484,24 +553,38 @@ export class PiecePropertiesFormComponent implements ControlValueAccessor {
     return formControlValue !== undefined && deepEqual(opt, formControlValue);
   };
 
-  addMentionToJsonControl(
-    jsonControl: CodemirrorComponent,
-    mention: InsertMentionOperation
-  ) {
-    const doc = jsonControl.codeMirror!.getDoc();
-    const cursor = doc.getCursor();
-    doc.replaceRange(mention.insert.mention.serverValue, cursor);
+  addMentionToJsonControl(mention: InsertMentionOperation) {
+    this.jsonMonacoEditor.trigger('keyboard', 'type', {
+      text: mention.insert.apMention.serverValue,
+    });
   }
-
+  onInit(monacoEditor: any) {
+    this.jsonMonacoEditor = monacoEditor;
+  }
   formValueMiddleWare(formValue: Record<string, unknown>) {
     const formattedValue: Record<string, unknown> = { ...formValue };
     Object.keys(formValue).forEach((pk) => {
       const property = this.properties[pk];
-      if (property.type === PropertyType.JSON) {
-        try {
-          formattedValue[pk] = JSON.parse(formValue[pk] as string);
-        } catch (_) {
-          //incase it is an invalid json
+      if (property.type === PropertyType.DYNAMIC) {
+        const dynamicPropertyValue = formValue[pk] as Record<string, unknown>;
+        Object.keys(dynamicPropertyValue).forEach((dpk) => {
+          if (
+            dynamicPropertyValue[dpk] === '' ||
+            dynamicPropertyValue[dpk] === null
+          ) {
+            (formattedValue[pk] as Record<string, unknown>)[dpk] = undefined;
+          }
+        });
+      }
+      if (formattedValue[pk] === '' || formattedValue[pk] === null) {
+        formattedValue[pk] = undefined;
+      } else {
+        if (property.type === PropertyType.JSON) {
+          try {
+            formattedValue[pk] = JSON.parse(formValue[pk] as string);
+          } catch (_) {
+            //incase it is an invalid json
+          }
         }
       }
     });
@@ -588,5 +671,19 @@ export class PiecePropertiesFormComponent implements ControlValueAccessor {
   }
   checkIfTheDivIsTheTarget($event: MouseEvent, noConnectionDiv: HTMLElement) {
     return $event.target === noConnectionDiv;
+  }
+
+  convertMarkdown(markdown: string): Observable<string> {
+    return forkJoin({
+      flow: this.store.select(BuilderSelectors.selectCurrentFlow).pipe(take(1)),
+      webhookPrefix: this.flagService.getWebhookUrlPrefix(),
+    }).pipe(
+      map((res) => {
+        return markdown.replace(
+          '{{webhookUrl}}',
+          `${res.webhookPrefix}/${res.flow.id}`
+        );
+      })
+    );
   }
 }

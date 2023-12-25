@@ -13,11 +13,12 @@
         "packageJson": "packages/pieces/twilio/package.json",
         "main": "packages/pieces/twilio/src/index.ts",
         "assets": ["packages/pieces/twilio/*.md"],
-        "buildableProjectDepsInPackageJsonType": "dependencies"
+        "buildableProjectDepsInPackageJsonType": "dependencies",
+        "updateBuildableProjectDepsInPackageJson": true
       }
     },
     "lint": {
-      "executor": "@nx/linter:eslint",
+      "executor": "@nx/eslint:lint",
       "outputs": ["{options.outputFile}"],
       "options": {
         "lintFilePatterns": ["packages/pieces/twilio/**/*.ts"]

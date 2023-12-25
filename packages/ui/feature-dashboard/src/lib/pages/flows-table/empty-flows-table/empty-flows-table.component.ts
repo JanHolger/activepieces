@@ -2,11 +2,15 @@ import { ChangeDetectionStrategy, Component } from '@angular/core';
 import { Router } from '@angular/router';
 import { Observable, switchMap, tap } from 'rxjs';
 import {
-  Flow,
+  PopulatedFlow,
   FlowOperationType,
   TelemetryEventName,
 } from '@activepieces/shared';
-import { FlowService, TelemetryService } from '@activepieces/ui/common';
+import {
+  FlagService,
+  FlowService,
+  TelemetryService,
+} from '@activepieces/ui/common';
 import { demoTemplate } from './demo-flow-template';
 
 @Component({
@@ -17,12 +21,16 @@ import { demoTemplate } from './demo-flow-template';
 })
 export class EmptyFlowsTableComponent {
   creatingFlow = false;
-  createFlow$: Observable<Flow>;
+  createFlow$: Observable<PopulatedFlow>;
+  showPoweredByAp$: Observable<boolean>;
   constructor(
     private router: Router,
     private flowService: FlowService,
-    private telemetryService: TelemetryService
-  ) {}
+    private telemetryService: TelemetryService,
+    private flagService: FlagService
+  ) {
+    this.showPoweredByAp$ = this.flagService.getShowPoweredByAp();
+  }
 
   createFlow() {
     if (!this.creatingFlow) {
@@ -30,7 +38,7 @@ export class EmptyFlowsTableComponent {
       localStorage.setItem('newFlow', 'true');
       this.createFlow$ = this.flowService
         .create({
-          displayName: 'Untitled',
+          displayName: $localize`Untitled`,
         })
         .pipe(
           tap((flow) => {
@@ -56,7 +64,7 @@ export class EmptyFlowsTableComponent {
                 request: demoTemplate,
               })
               .pipe(
-                tap((updatedFlow: Flow) => {
+                tap((updatedFlow: PopulatedFlow) => {
                   this.telemetryService.capture({
                     name: TelemetryEventName.DEMO_IMPORTED,
                     payload: {},

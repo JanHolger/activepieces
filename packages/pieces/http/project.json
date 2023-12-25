@@ -13,11 +13,12 @@
         "packageJson": "packages/pieces/http/package.json",
         "main": "packages/pieces/http/src/index.ts",
         "assets": ["packages/pieces/http/*.md"],
-        "buildableProjectDepsInPackageJsonType": "dependencies"
+        "buildableProjectDepsInPackageJsonType": "dependencies",
+        "updateBuildableProjectDepsInPackageJson": true
       }
     },
     "lint": {
-      "executor": "@nx/linter:eslint",
+      "executor": "@nx/eslint:lint",
       "outputs": ["{options.outputFile}"],
       "options": {
         "lintFilePatterns": ["packages/pieces/http/**/*.ts"]

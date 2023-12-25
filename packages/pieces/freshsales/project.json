@@ -13,11 +13,12 @@
         "packageJson": "packages/pieces/freshsales/package.json",
         "main": "packages/pieces/freshsales/src/index.ts",
         "assets": ["packages/pieces/freshsales/*.md"],
-        "buildableProjectDepsInPackageJsonType": "dependencies"
+        "buildableProjectDepsInPackageJsonType": "dependencies",
+        "updateBuildableProjectDepsInPackageJson": true
       }
     },
     "lint": {
-      "executor": "@nx/linter:eslint",
+      "executor": "@nx/eslint:lint",
       "outputs": ["{options.outputFile}"],
       "options": {
         "lintFilePatterns": ["packages/pieces/freshsales/**/*.ts"]

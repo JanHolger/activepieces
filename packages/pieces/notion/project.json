@@ -12,11 +12,12 @@
         "tsConfig": "packages/pieces/notion/tsconfig.lib.json",
         "packageJson": "packages/pieces/notion/package.json",
         "main": "packages/pieces/notion/src/index.ts",
-        "assets": ["packages/pieces/notion/*.md"]
+        "assets": ["packages/pieces/notion/*.md"],
+        "updateBuildableProjectDepsInPackageJson": true
       }
     },
     "lint": {
-      "executor": "@nx/linter:eslint",
+      "executor": "@nx/eslint:lint",
       "outputs": ["{options.outputFile}"],
       "options": {
         "lintFilePatterns": ["packages/pieces/notion/**/*.ts"]

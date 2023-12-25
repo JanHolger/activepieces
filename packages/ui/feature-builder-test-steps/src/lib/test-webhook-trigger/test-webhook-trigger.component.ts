@@ -95,7 +95,7 @@ export class TestWebhookTriggerComponent extends TestStepCoreComponent {
       take(1),
       switchMap((flow) => {
         const stopListening$ = merge(this.cancelTesting$, this.foundNewResult$);
-        return interval(500).pipe(
+        return interval(this.POLLING_TEST_INTERVAL_MS).pipe(
           takeUntil(stopListening$),
           switchMap(() => {
             return this.createResultsChecker(flow.id.toString());
@@ -128,7 +128,6 @@ export class TestWebhookTriggerComponent extends TestStepCoreComponent {
           this.foundNewResult$.next(true);
           const resultsList = [...newResults, ...res.currentResults];
           this.currentResults$.next(resultsList);
-
           this.testStepService.elevateResizer$.next(true);
           return resultsList;
         }

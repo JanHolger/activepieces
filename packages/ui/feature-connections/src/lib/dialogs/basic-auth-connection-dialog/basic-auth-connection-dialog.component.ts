@@ -1,7 +1,7 @@
 import {
-  AppConnection,
   AppConnectionType,
-  BasicAuthConnection,
+  AppConnectionWithoutSensitiveData,
+  ErrorCode,
   UpsertBasicAuthRequest,
 } from '@activepieces/shared';
 import { ChangeDetectionStrategy, Component, Inject } from '@angular/core';
@@ -12,16 +12,19 @@ import {
   Validators,
 } from '@angular/forms';
 import { MatDialogRef, MAT_DIALOG_DATA } from '@angular/material/dialog';
-import { MatSnackBar } from '@angular/material/snack-bar';
 import { Store } from '@ngrx/store';
 import { catchError, Observable, of, take, tap } from 'rxjs';
-import { AppConnectionsService } from '../../services/app-connections.service';
 import { ConnectionValidator } from '../../validators/connectionNameValidator';
 import {
   BuilderSelectors,
   appConnectionsActions,
 } from '@activepieces/ui/feature-builder-store';
 import { BasicAuthProperty } from '@activepieces/pieces-framework';
+import {
+  AppConnectionsService,
+  AuthenticationService,
+} from '@activepieces/ui/common';
+import { connectionNameRegex } from '../utils';
 
 interface BasicAuthForm {
   name: FormControl<string>;
@@ -31,7 +34,7 @@ interface BasicAuthForm {
 export interface BasicAuthDialogData {
   pieceAuthProperty: BasicAuthProperty<boolean>;
   pieceName: string;
-  connectionToUpdate?: BasicAuthConnection;
+  connectionToUpdate?: AppConnectionWithoutSensitiveData;
 }
 
 @Component({
@@ -41,15 +44,15 @@ export interface BasicAuthDialogData {
 })
 export class BasicAuthConnectionDialogComponent {
   loading = false;
-  upsert$: Observable<AppConnection | null>;
+  upsert$: Observable<AppConnectionWithoutSensitiveData | null>;
   settingsForm: FormGroup<BasicAuthForm>;
   keyTooltip =
     'The ID of this connection definition. You will need to select this key whenever you want to reuse this connection.';
   constructor(
     private formBuilder: FormBuilder,
     private store: Store,
+    private authenticationService: AuthenticationService,
     private appConnectionsService: AppConnectionsService,
-    private snackbar: MatSnackBar,
     private dialogRef: MatDialogRef<BasicAuthConnectionDialogComponent>,
     @Inject(MAT_DIALOG_DATA)
     public readonly dialogData: BasicAuthDialogData
@@ -71,7 +74,7 @@ export class BasicAuthConnectionDialogComponent {
           nonNullable: true,
           validators: [
             Validators.required,
-            Validators.pattern('[A-Za-z0-9_\\-]*'),
+            Validators.pattern(connectionNameRegex),
           ],
           asyncValidators: [
             ConnectionValidator.createValidator(
@@ -85,16 +88,7 @@ export class BasicAuthConnectionDialogComponent {
       ),
     });
     if (this.dialogData.connectionToUpdate) {
-      this.settingsForm.controls.name.setValue(
-        this.dialogData.connectionToUpdate.name
-      );
       this.settingsForm.controls.name.disable();
-      this.settingsForm.controls.username.setValue(
-        this.dialogData.connectionToUpdate.value.username
-      );
-      this.settingsForm.controls.password.setValue(
-        this.dialogData.connectionToUpdate.value.password
-      );
     }
   }
   submit() {
@@ -103,7 +97,9 @@ export class BasicAuthConnectionDialogComponent {
       this.loading = true;
       const upsertRequest: UpsertBasicAuthRequest = {
         appName: this.dialogData.pieceName,
+        projectId: this.authenticationService.getProjectId(),
         name: this.settingsForm.getRawValue().name,
+        type: AppConnectionType.BASIC_AUTH,
         value: {
           password: this.settingsForm.getRawValue().password,
           username: this.settingsForm.getRawValue().username,
@@ -111,16 +107,14 @@ export class BasicAuthConnectionDialogComponent {
         },
       };
       this.upsert$ = this.appConnectionsService.upsert(upsertRequest).pipe(
-        catchError((err) => {
-          console.error(err);
-          this.snackbar.open(
-            'Connection operation failed please check your console.',
-            'Close',
-            {
-              panelClass: 'error',
-              duration: 5000,
-            }
-          );
+        catchError((response) => {
+          console.error(response);
+          this.settingsForm.setErrors({
+            message:
+              response.error.code === ErrorCode.INVALID_APP_CONNECTION
+                ? `Connection failed: ${response.error.params.error}`
+                : 'Internal Connection error, failed please check your console.',
+          });
           return of(null);
         }),
         tap((connection) => {

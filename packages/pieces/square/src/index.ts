@@ -3,7 +3,6 @@ import crypto from 'crypto'
 import { triggers } from './lib/triggers';
 
 export const squareAuth = PieceAuth.OAuth2({
-  displayName: 'Authentication',
   description: 'Authentication',
   authUrl: 'https://connect.squareup.com/oauth2/authorize',
   tokenUrl: 'https://connect.squareup.com/oauth2/token',
@@ -24,7 +23,7 @@ export const squareAuth = PieceAuth.OAuth2({
 })
 
 export const square = createPiece({
-  displayName: 'square',
+  displayName: 'Square',
       minimumSupportedRelease: '0.5.0',
     logoUrl: 'https://cdn.activepieces.com/pieces/square.png',
   authors: [
@@ -40,10 +39,16 @@ export const square = createPiece({
       return hash === signature;
     },
     parseAndReply: ({ payload }) => {
-      return { event: payload.body?.type, identifierValue: payload.body.merchant_id }
+      const payloadBody = payload.body as Payload | undefined;
+      return { event: payloadBody?.type, identifierValue: payloadBody?.merchant_id }
     }
   },
   actions: [
   ],
   triggers,
 });
+
+type Payload = {
+  type: string
+  merchant_id: string
+}

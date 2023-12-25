@@ -13,11 +13,12 @@
         "packageJson": "packages/pieces/stability-ai/package.json",
         "main": "packages/pieces/stability-ai/src/index.ts",
         "assets": ["packages/pieces/stability-ai/*.md"],
-        "buildableProjectDepsInPackageJsonType": "dependencies"
+        "buildableProjectDepsInPackageJsonType": "dependencies",
+        "updateBuildableProjectDepsInPackageJson": true
       }
     },
     "lint": {
-      "executor": "@nx/linter:eslint",
+      "executor": "@nx/eslint:lint",
       "outputs": ["{options.outputFile}"],
       "options": {
         "lintFilePatterns": ["packages/pieces/stability-ai/**/*.ts"]

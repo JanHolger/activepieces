@@ -11,7 +11,7 @@ import {
   forkJoin,
   map,
 } from 'rxjs';
-import { AppConnection } from '@activepieces/shared';
+import { AppConnectionWithoutSensitiveData } from '@activepieces/shared';
 import {
   AppConnectionsService,
   ApPaginatorComponent,
@@ -19,10 +19,11 @@ import {
   DEFAULT_PAGE_SIZE,
   LIMIT_QUERY_PARAM,
   CURSOR_QUERY_PARAM,
-  PieceMetadataService,
+  AuthenticationService,
 } from '@activepieces/ui/common';
 import { Store } from '@ngrx/store';
 import { Params } from '@angular/router';
+import { PieceMetadataService } from 'ui-feature-pieces';
 
 /**
  * Data source for the LogsTable view. This class should
@@ -30,13 +31,14 @@ import { Params } from '@angular/router';
  * (including sorting, pagination, and filtering).
  */
 export class ConnectionsTableDataSource extends DataSource<any> {
-  data: AppConnection[] = [];
+  data: AppConnectionWithoutSensitiveData[] = [];
   isLoading$: BehaviorSubject<boolean> = new BehaviorSubject(true);
   constructor(
     private queryParams$: Observable<Params>,
     private paginator: ApPaginatorComponent,
     private store: Store,
     private pieceMetadataService: PieceMetadataService,
+    private authenticationService: AuthenticationService,
     private connectionsService: AppConnectionsService,
     private refresh$: Observable<boolean>
   ) {
@@ -51,7 +53,9 @@ export class ConnectionsTableDataSource extends DataSource<any> {
   connect(): Observable<any[]> {
     return combineLatest({
       queryParams: this.queryParams$,
-      project: this.store.select(ProjectSelectors.selectProject).pipe(take(1)),
+      project: this.store
+        .select(ProjectSelectors.selectCurrentProject)
+        .pipe(take(1)),
       refresh: this.refresh$,
     }).pipe(
       tap(() => {
@@ -59,6 +63,7 @@ export class ConnectionsTableDataSource extends DataSource<any> {
       }),
       switchMap((res) => {
         return this.connectionsService.list({
+          projectId: this.authenticationService.getProjectId(),
           limit: res.queryParams[LIMIT_QUERY_PARAM] || DEFAULT_PAGE_SIZE,
           cursor: res.queryParams[CURSOR_QUERY_PARAM],
         });

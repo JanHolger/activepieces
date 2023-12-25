@@ -1,110 +1,48 @@
 import {
     ActionType,
     ActivepiecesError,
-    CodeAction,
     StepRunResponse,
     ErrorCode,
-    ExecuteActionOperation,
     flowHelper,
-    FlowVersion,
     FlowVersionId,
-    PieceAction,
     ProjectId,
+    UserId,
 } from '@activepieces/shared'
 import { engineHelper } from '../../helper/engine-helper'
 import { flowVersionService } from '../flow-version/flow-version.service'
-import { fileService } from '../../file/file.service'
-import { codeBuilder } from '../../workers/code-worker/code-builder'
 import { isNil } from '@activepieces/shared'
-
-type CreateParams = {
-    projectId: ProjectId
-    flowVersionId: FlowVersionId
-    stepName: string
-}
-
-type ExecutePieceParams = {
-    step: PieceAction
-    flowVersion: FlowVersion
-    projectId: ProjectId
-}
 
 export const stepRunService = {
     async create({ projectId, flowVersionId, stepName }: CreateParams): Promise<StepRunResponse> {
         const flowVersion = await flowVersionService.getOneOrThrow(flowVersionId)
         const step = flowHelper.getStep(flowVersion, stepName)
 
-        if (isNil(step) || (step.type !== ActionType.PIECE && step.type !== ActionType.CODE)) {
+        if (isNil(step) || !Object.values(ActionType).includes(step.type as ActionType)) {
             throw new ActivepiecesError({
-                code: ErrorCode.VALIDATION,
+                code: ErrorCode.STEP_NOT_FOUND,
                 params: {
-                    message: `invalid stepName (${stepName})`,
+                    stepName,
                 },
             })
         }
-
-        switch (step.type) {
-            case ActionType.PIECE: {
-                return await executePiece({ step, flowVersion, projectId })
-            }
-            case ActionType.CODE: {
-                return await executeCode({ step, flowVersion, projectId })
-            }
+        const { result, standardError, standardOutput } = await engineHelper.executeAction({
+            stepName,
+            flowVersion,
+            projectId,
+        })
+        return {
+            success: result.success,
+            output: result.output,
+            standardError,
+            standardOutput,
         }
+
     },
 }
 
-async function executePiece({ step, projectId, flowVersion }: ExecutePieceParams): Promise<StepRunResponse> {
-    const { pieceName, pieceVersion, actionName, input } = step.settings
-
-    if (isNil(actionName)) {
-        throw new ActivepiecesError({
-            code: ErrorCode.VALIDATION,
-            params: {
-                message: 'actionName is undefined',
-            },
-        })
-    }
-
-    const operation: ExecuteActionOperation = {
-        pieceName,
-        pieceVersion,
-        actionName,
-        input: input,
-        flowVersion,
-        projectId,
-    }
-
-    const { result, standardError, standardOutput } = await engineHelper.executeAction(operation)
-    if (result.success) {
-        step.settings.inputUiInfo.currentSelectedData = result.output
-        await flowVersionService.overwriteVersion(flowVersion.id, flowVersion)
-    }
-    return {
-        success: result.success,
-        output: result.output,
-        standardError: standardError,
-        standardOutput: standardOutput,
-    }
-}
-
-async function executeCode({ step, flowVersion, projectId }: { step: CodeAction, flowVersion: FlowVersion, projectId: ProjectId }): Promise<StepRunResponse> {
-    const file = await fileService.getOneOrThrow({
-        projectId,
-        fileId: step.settings.artifactSourceId!,
-    })
-    const bundledCode = await codeBuilder.build(file.data)
-
-    const { result, standardError, standardOutput } = await engineHelper.executeCode({
-        codeBase64: bundledCode.toString('base64'),
-        input: step.settings.input,
-        flowVersion,
-        projectId,
-    })
-    return {
-        success: result.success,
-        output: result.output,
-        standardError: standardError,
-        standardOutput: standardOutput,
-    }
+type CreateParams = {
+    userId: UserId
+    projectId: ProjectId
+    flowVersionId: FlowVersionId
+    stepName: string
 }

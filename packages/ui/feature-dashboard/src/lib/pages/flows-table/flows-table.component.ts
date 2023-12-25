@@ -1,19 +1,19 @@
-import { Component, OnInit, ViewChild } from '@angular/core';
-import { ActivatedRoute, Router } from '@angular/router';
+import { Component, Inject, LOCALE_ID, OnInit, ViewChild } from '@angular/core';
+import { ActivatedRoute } from '@angular/router';
 import { map, Observable, shareReplay, startWith, Subject, tap } from 'rxjs';
 import { FlowsTableDataSource } from './flows-table.datasource';
 import { MatDialog } from '@angular/material/dialog';
 import {
-  Flow,
-  FlowInstanceStatus,
+  PopulatedFlow,
+  FlowStatus,
   FolderId,
   TriggerType,
 } from '@activepieces/shared';
 
 import {
   ApPaginatorComponent,
-  FlowInstanceService,
   FoldersService,
+  NavigationService,
 } from '@activepieces/ui/common';
 import { FlowService } from '@activepieces/ui/common';
 import { ARE_THERE_FLOWS_FLAG } from '../../resolvers/are-there-flows.resolver';
@@ -29,7 +29,7 @@ import {
   MoveFlowToFolderDialogData,
 } from './move-flow-to-folder-dialog/move-flow-to-folder-dialog.component';
 import { FoldersSelectors } from '../../store/folders/folders.selector';
-import cronstrue from 'cronstrue';
+import cronstrue from 'cronstrue/i18n';
 
 @Component({
   templateUrl: './flows-table.component.html',
@@ -60,9 +60,9 @@ export class FlowsTableComponent implements OnInit {
     private dialogService: MatDialog,
     private flowService: FlowService,
     private foldersService: FoldersService,
-    private router: Router,
-    private instanceService: FlowInstanceService,
-    private store: Store
+    private store: Store,
+    private navigationService: NavigationService,
+    @Inject(LOCALE_ID) private locale: string
   ) {
     this.listenToShowAllFolders();
     this.folderId$ = this.store.select(FoldersSelectors.selectCurrentFolderId);
@@ -106,22 +106,17 @@ export class FlowsTableComponent implements OnInit {
     );
   }
 
-  openBuilder(flow: Flow, event: MouseEvent) {
+  openBuilder(flow: PopulatedFlow, event: MouseEvent) {
     const link = '/flows/' + flow.id;
-    if (event.ctrlKey || event.which == 2 || event.button == 4) {
-      // Open in new tab
-      window.open(link, '_blank', 'noopener');
-    } else {
-      // Open in the same tab
-      this.router.navigateByUrl(link);
-    }
+    const newWindow = event.ctrlKey || event.which == 2 || event.button == 4;
+    this.navigationService.navigate(link, newWindow);
   }
 
-  deleteFlow(flow: Flow) {
+  deleteFlow(flow: PopulatedFlow) {
     const dialogData: DeleteEntityDialogData = {
       deleteEntity$: this.flowService.delete(flow.id),
       entityName: flow.version.displayName,
-      note: `This will permanently delete the flow, all its data and any background runs.
+      note: $localize`This will permanently delete the flow, all its data and any background runs.
       You can't undo this action.`,
     };
     const dialogRef = this.dialogService.open(DeleteEntityDialogComponent, {
@@ -143,20 +138,20 @@ export class FlowsTableComponent implements OnInit {
       })
     );
   }
-  toggleFlowStatus(flow: Flow, control: FormControl<boolean>) {
+  toggleFlowStatus(flow: PopulatedFlow, control: FormControl<boolean>) {
     if (control.enabled) {
       control.disable();
-      this.flowsUpdateStatusRequest$[flow.id] = this.instanceService
+      this.flowsUpdateStatusRequest$[flow.id] = this.flowService
         .updateStatus(flow.id, {
           status:
-            flow.status === FlowInstanceStatus.ENABLED
-              ? FlowInstanceStatus.DISABLED
-              : FlowInstanceStatus.ENABLED,
+            flow.status === FlowStatus.ENABLED
+              ? FlowStatus.DISABLED
+              : FlowStatus.ENABLED,
         })
         .pipe(
           tap((res) => {
             control.enable();
-            control.setValue(res.status === FlowInstanceStatus.ENABLED);
+            control.setValue(res.status === FlowStatus.ENABLED);
             this.flowsUpdateStatusRequest$[flow.id] = null;
             flow.status = res.status;
           }),
@@ -164,11 +159,11 @@ export class FlowsTableComponent implements OnInit {
         );
     }
   }
-  duplicate(flow: Flow) {
+  duplicate(flow: PopulatedFlow) {
     this.duplicateFlow$ = this.flowService.duplicate(flow.id);
   }
 
-  getTriggerIcon(flow: Flow) {
+  getTriggerIcon(flow: PopulatedFlow) {
     const trigger = flow.version.trigger;
     switch (trigger.type) {
       case TriggerType.WEBHOOK:
@@ -181,28 +176,40 @@ export class FlowsTableComponent implements OnInit {
           return 'assets/img/custom/triggers/instant-filled.svg';
         }
       }
-      case TriggerType.EMPTY:
-        throw new Error("Flow can't be published with empty trigger");
+      case TriggerType.EMPTY: {
+        console.error(
+          "Flow can't be published with empty trigger " +
+            flow.version.displayName
+        );
+        return 'assets/img/custom/warn.svg';
+      }
     }
   }
 
-  getTriggerToolTip(flow: Flow) {
+  getTriggerToolTip(flow: PopulatedFlow) {
     const trigger = flow.version.trigger;
     switch (trigger.type) {
       case TriggerType.WEBHOOK:
-        return 'Real time flow';
+        return $localize`Real time flow`;
       case TriggerType.PIECE: {
         const cronExpression = flow.schedule?.cronExpression;
         return cronExpression
-          ? `Runs ${cronstrue.toString(cronExpression).toLocaleLowerCase()}`
-          : 'Real time flow';
+          ? $localize`Runs ${cronstrue
+              .toString(cronExpression, { locale: this.locale })
+              .toLocaleLowerCase()}`
+          : $localize`Real time flow`;
       }
-      case TriggerType.EMPTY:
-        throw new Error("Flow can't be published with empty trigger");
+      case TriggerType.EMPTY: {
+        console.error(
+          "Flow can't be published with empty trigger " +
+            flow.version.displayName
+        );
+        return $localize`Please contact support as your published flow has a problem`;
+      }
     }
   }
 
-  moveFlow(flow: Flow) {
+  moveFlow(flow: PopulatedFlow) {
     const dialogData: MoveFlowToFolderDialogData = {
       flowId: flow.id,
       folderId: flow.folderId,
@@ -218,5 +225,17 @@ export class FlowsTableComponent implements OnInit {
         }),
         map(() => void 0)
       );
+  }
+
+  getStatusFlowMatTooltip(flow: {
+    instanceToggleControl: FormControl<boolean>;
+  }) {
+    if (flow.instanceToggleControl.disabled) {
+      return $localize`Please publish the flow`;
+    }
+
+    return flow.instanceToggleControl.value
+      ? $localize`Flow is on`
+      : $localize`Flow is off`;
   }
 }

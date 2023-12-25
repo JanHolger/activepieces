@@ -9,20 +9,20 @@ export const storeEntryService = {
         const previousEntry = await this.getOne({ projectId, key: request.key })
         if (previousEntry !== null) {
             await storeEntryRepo.update(previousEntry.id, request)
-            return await this.getOne({ projectId, key: request.key })
+            return this.getOne({ projectId, key: request.key })
         }
         else {
             const entryRequest: Omit<StoreEntry, 'created' | 'updated'> = {
                 id: apId(),
                 key: request.key,
                 value: request.value,
-                projectId:projectId,
+                projectId,
             }
-            return await storeEntryRepo.save(entryRequest)
+            return storeEntryRepo.save(entryRequest)
         }
     },
     async getOne({ projectId, key }: { projectId: ProjectId, key: string }): Promise<StoreEntry | null> {
-        return await storeEntryRepo.findOneBy({
+        return storeEntryRepo.findOneBy({
             projectId,
             key,
         })

@@ -3,17 +3,23 @@ title: "Overview"
 description: "Introduction to the different ways to install Activepieces"
 ---
 
-## Recommended Options
+Activepieces Community Edition can be deployed using **Docker**, **Docker Compose** and **Kubernetes**.
 
-Activepieces can be deployed using Docker Compose and Kubernetes. We are also working on rolling out specific deployment options for popular hosting providers such as DigitalOcean, AWS, GCP, and Azure.
+<Tip>
+Community Editions is focused on **individuals**, It is **free** and **open source**.
+
+You can read the difference between the editions [here](.././editions).
+</Tip>
+
+## Recommended Options 
 
 <CardGroup cols={2}>
-  <Card title="Activepieces Cloud" icon="cloud" color="##5155D7" href="https://cloud.activepieces.com/">
-   This is the fastest 
+  <Card title="Docker (Fastest)" icon="docker" color="#248fe0" href="./docker">
+Deploy Activepieces as a single Docker container using the sqllite database.
   </Card>
 
-  <Card title="Docker Compose" icon="docker" color="#248fe0" href="./docker">
-    Deploy using Docker Compose
+  <Card title="Docker Compose" icon="layer-group" color="#00FFFF" href="./docker-compose">
+    Deploy Activepieces with **redis** and **postgres** setup
   </Card>
 
 </CardGroup>
@@ -21,6 +27,7 @@ Activepieces can be deployed using Docker Compose and Kubernetes. We are also wo
 ## Other Options
 
 <CardGroup cols={2}>
+
   <Card title="Easypanel" icon={
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 245 245">
           <g clip-path="url(#a)">
@@ -38,5 +45,23 @@ Activepieces can be deployed using Docker Compose and Kubernetes. We are also wo
         </svg>
         } href="./easypanel">
    1-Click Install with Easypanel
+  </Card>
+
+  <Card title="AWS" icon="aws" color="#ff9900" href="./aws">
+    Install on AWS with Pulumi
+  </Card>
+
+
+  <Card title="GCP" icon="cloud" color="#4385f5" href="./gcp">
+    Install on GCP as VM template 
+  </Card>
+
+</CardGroup>
+
+## Cloud Edition
+
+<CardGroup cols={2}>
+  <Card title="Activepieces Cloud" icon="cloud" color="##5155D7" href="https://cloud.activepieces.com/">
+   This is the fastest 
   </Card>
 </CardGroup>

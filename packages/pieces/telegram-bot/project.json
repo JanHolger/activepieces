@@ -13,11 +13,12 @@
         "packageJson": "packages/pieces/telegram-bot/package.json",
         "main": "packages/pieces/telegram-bot/src/index.ts",
         "assets": ["packages/pieces/telegram-bot/*.md"],
-        "buildableProjectDepsInPackageJsonType": "dependencies"
+        "buildableProjectDepsInPackageJsonType": "dependencies",
+        "updateBuildableProjectDepsInPackageJson": true
       }
     },
     "lint": {
-      "executor": "@nx/linter:eslint",
+      "executor": "@nx/eslint:lint",
       "outputs": ["{options.outputFile}"],
       "options": {
         "lintFilePatterns": ["packages/pieces/telegram-bot/**/*.ts"]

@@ -13,11 +13,12 @@
         "packageJson": "packages/pieces/cal-com/package.json",
         "main": "packages/pieces/cal-com/src/index.ts",
         "assets": ["packages/pieces/cal-com/*.md"],
-        "buildableProjectDepsInPackageJsonType": "dependencies"
+        "buildableProjectDepsInPackageJsonType": "dependencies",
+        "updateBuildableProjectDepsInPackageJson": true
       }
     },
     "lint": {
-      "executor": "@nx/linter:eslint",
+      "executor": "@nx/eslint:lint",
       "outputs": ["{options.outputFile}"],
       "options": {
         "lintFilePatterns": ["packages/pieces/cal-com/**/*.ts"]

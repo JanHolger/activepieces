@@ -33,7 +33,6 @@ export default createAction({
             required: false,
         })
     },
-    sampleData: sampleTask,
     async run(configValue) {
         const { auth } = configValue
         const client = makeClient(auth as OAuth2PropertyValue)

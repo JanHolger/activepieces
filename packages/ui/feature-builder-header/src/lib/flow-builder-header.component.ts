@@ -3,12 +3,14 @@ import { Router } from '@angular/router';
 import { Store } from '@ngrx/store';
 import { map, Observable, switchMap, take, tap } from 'rxjs';
 import {
+  AppearanceService,
   DeleteEntityDialogComponent,
   DeleteEntityDialogData,
   FlagService,
   FlowService,
+  NavigationService,
+  environment,
   fadeIn400ms,
-  initialiseBeamer,
 } from '@activepieces/ui/common';
 import { MatDialog } from '@angular/material/dialog';
 import {
@@ -16,7 +18,8 @@ import {
   CollectionBuilderService,
   FlowsActions,
 } from '@activepieces/ui/feature-builder-store';
-import { ApEdition, Flow, FlowInstance } from '@activepieces/shared';
+import { FlowStatus, PopulatedFlow } from '@activepieces/shared';
+import { EmbeddingService } from '@activepieces/ui/common';
 import { ImportFlowDialogueComponent } from './import-flow-dialogue/import-flow-dialogue.component';
 
 @Component({
@@ -28,28 +31,46 @@ import { ImportFlowDialogueComponent } from './import-flow-dialogue/import-flow-
 export class FlowBuilderHeaderComponent implements OnInit {
   isInDebugMode$: Observable<boolean>;
   isInReadOnlyMode$: Observable<boolean>;
-  instance$: Observable<FlowInstance | undefined>;
-  flow$: Observable<Flow>;
+  flowStatus$: Observable<FlowStatus>;
+  flow$: Observable<PopulatedFlow>;
   editingFlowName = false;
   downloadFile$: Observable<void>;
+  shareFlow$: Observable<void>;
   deleteFlowDialogClosed$: Observable<void>;
   folderDisplayName$: Observable<string>;
   duplicateFlow$: Observable<void>;
-  showGuessFlowBtn$: Observable<boolean>;
   openDashboardOnFolder$: Observable<string>;
+  environment = environment;
+  fullLogo$: Observable<string>;
+  setTitle$: Observable<void>;
+  isInEmbedded$: Observable<boolean>;
+  hasFlowBeenPublished$: Observable<boolean>;
+  showBackButtonAndFolderName$: Observable<boolean>;
   constructor(
     public dialogService: MatDialog,
     private store: Store,
     private router: Router,
+    private appearanceService: AppearanceService,
     public collectionBuilderService: CollectionBuilderService,
     private flowService: FlowService,
-    private flagsService: FlagService,
-    private matDialog: MatDialog
-  ) {}
+    private matDialog: MatDialog,
+    private flagService: FlagService,
+    private embeddingService: EmbeddingService,
+    private navigationService: NavigationService
+  ) {
+    this.hasFlowBeenPublished$ = this.store.select(
+      BuilderSelectors.selectHasFlowBeenPublished
+    );
+    this.isInEmbedded$ = this.embeddingService.getIsInEmbedding$();
+    this.showBackButtonAndFolderName$ =
+      this.embeddingService.getShowFolderNameAndBackButton$();
+    this.fullLogo$ = this.flagService
+      .getLogos()
+      .pipe(map((logos) => logos.fullLogoUrl));
+  }
 
   ngOnInit(): void {
-    initialiseBeamer();
-    this.instance$ = this.store.select(BuilderSelectors.selectCurrentInstance);
+    this.flowStatus$ = this.store.select(BuilderSelectors.selectFlowStatus);
     this.isInDebugMode$ = this.store.select(
       BuilderSelectors.selectIsInDebugMode
     );
@@ -58,26 +79,15 @@ export class FlowBuilderHeaderComponent implements OnInit {
     this.folderDisplayName$ = this.store.select(
       BuilderSelectors.selectCurrentFlowFolderName
     );
-    this.showGuessFlowBtn$ = this.flagsService
-      .getEdition()
-      .pipe(map((ed) => ed === ApEdition.ENTERPRISE));
   }
   changeEditValue(event: boolean) {
     this.editingFlowName = event;
   }
-
   redirectHome(newWindow: boolean) {
-    if (newWindow) {
-      const url = this.router.serializeUrl(this.router.createUrlTree([``]));
-      window.open(url, '_blank', 'noopener');
-    } else {
-      const urlArrays = this.router.url.split('/');
-      urlArrays.splice(urlArrays.length - 1, 1);
-      const fixedUrl = urlArrays.join('/');
-      this.router.navigate([fixedUrl]);
-    }
+    this.navigationService.navigate('/flows', newWindow);
   }
   saveFlowName(flowName: string) {
+    this.setTitle$ = this.appearanceService.setTitle(flowName);
     this.store.dispatch(FlowsActions.changeName({ displayName: flowName }));
   }
 
@@ -92,6 +102,7 @@ export class FlowBuilderHeaderComponent implements OnInit {
         map(() => void 0)
       );
   }
+
   download(id: string) {
     this.downloadFile$ = this.flowService.exportTemplate(id, undefined).pipe(
       tap((json) => {
@@ -117,11 +128,11 @@ export class FlowBuilderHeaderComponent implements OnInit {
     this.matDialog.open(ImportFlowDialogueComponent);
   }
 
-  deleteFlow(flow: Flow) {
+  deleteFlow(flow: PopulatedFlow) {
     const dialogData: DeleteEntityDialogData = {
       deleteEntity$: this.flowService.delete(flow.id),
       entityName: flow.version.displayName,
-      note: `This will permanently delete the flow, all its data and any background runs.
+      note: $localize`This will permanently delete the flow, all its data and any background runs.
       You can't undo this action.`,
     };
     const dialogRef = this.dialogService.open(DeleteEntityDialogComponent, {

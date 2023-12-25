@@ -1,15 +1,15 @@
-import { FastifyInstance, FastifyRequest } from 'fastify'
+import { FastifyPluginAsyncTypebox } from '@fastify/type-provider-typebox'
 import { ListTriggerEventsRequest, TestPollingTriggerRequest } from '@activepieces/shared'
 import { triggerEventService } from './trigger-event.service'
 import { flowService } from '../flow/flow.service'
 
 const DEFAULT_PAGE_SIZE = 10
 
-export const triggerEventModule = async (app: FastifyInstance) => {
-    app.register(triggerEventController, { prefix: '/v1/trigger-events' })
+export const triggerEventModule: FastifyPluginAsyncTypebox = async (app) => {
+    await app.register(triggerEventController, { prefix: '/v1/trigger-events' })
 }
 
-const triggerEventController = async (fastify: FastifyInstance) => {
+const triggerEventController: FastifyPluginAsyncTypebox = async (fastify) => {
     fastify.get(
         '/poll',
         {
@@ -17,19 +17,15 @@ const triggerEventController = async (fastify: FastifyInstance) => {
                 querystring: TestPollingTriggerRequest,
             },
         },
-        async (
-            request: FastifyRequest<{
-                Querystring: TestPollingTriggerRequest
-            }>,
-        ) => {
-            const flow = await flowService.getOneOrThrow({
+        async (request) => {
+            const flow = await flowService.getOnePopulatedOrThrow({
                 projectId: request.principal.projectId,
                 id: request.query.flowId,
             })
 
-            return await triggerEventService.test({
+            return triggerEventService.test({
                 projectId: request.principal.projectId,
-                flow: flow,
+                flow,
             })
         },
     )
@@ -41,15 +37,11 @@ const triggerEventController = async (fastify: FastifyInstance) => {
                 querystring: TestPollingTriggerRequest,
             },
         },
-        async (
-            request: FastifyRequest<{
-                Querystring: TestPollingTriggerRequest
-            }>,
-        ) => {
-            return await triggerEventService.saveEvent({
+        async (request) => {
+            return triggerEventService.saveEvent({
                 projectId: request.principal.projectId,
-                flowId:request.query.flowId,
-                payload:request.body,
+                flowId: request.query.flowId,
+                payload: request.body,
             })
         },
     )
@@ -61,21 +53,18 @@ const triggerEventController = async (fastify: FastifyInstance) => {
                 querystring: ListTriggerEventsRequest,
             },
         },
-        async (
-            request: FastifyRequest<{
-                Querystring: ListTriggerEventsRequest
-            }>,
-        ) => {
-            const flow = await flowService.getOneOrThrow({ projectId: request.principal.projectId, id: request.query.flowId })
-            return await triggerEventService.list({
+        async (request) => {
+            const flow = await flowService.getOnePopulatedOrThrow({
+                id: request.query.flowId,
                 projectId: request.principal.projectId,
-                flow: flow,
+            })
+
+            return triggerEventService.list({
+                projectId: request.principal.projectId,
+                flow,
                 cursor: request.query.cursor ?? null,
                 limit: request.query.limit ?? DEFAULT_PAGE_SIZE,
             })
         },
     )
-
-    
-    
 }

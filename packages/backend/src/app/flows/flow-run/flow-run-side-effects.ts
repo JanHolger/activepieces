@@ -1,14 +1,18 @@
 import { isNil } from '@activepieces/shared'
 import dayjs from 'dayjs'
 import { ActivepiecesError, ErrorCode, ExecutionType, FlowRun, PauseType } from '@activepieces/shared'
-import { JobType, flowQueue } from '../../workers/flow-worker/flow-queue'
+import { flowQueue } from '../../workers/flow-worker/flow-queue'
 import { logger } from '../../helper/logger'
 import { LATEST_JOB_DATA_SCHEMA_VERSION } from '../../workers/flow-worker/job-data'
+import { JobType } from '../../workers/flow-worker/queues/queue'
+import { notifications } from '../../helper/notifications'
+import { flowRunHooks } from './flow-run-hooks'
 
 type StartParams = {
     flowRun: FlowRun
     executionType: ExecutionType
     payload: unknown
+    synchronousHandlerId?: string
 }
 
 type PauseParams = {
@@ -29,13 +33,22 @@ const calculateDelayForResumeJob = (resumeDateTimeIsoString: string): number => 
 }
 
 export const flowRunSideEffects = {
-    async start({ flowRun, executionType, payload }: StartParams): Promise<void> {
+    async finish({ flowRun }: {
+        flowRun: FlowRun
+    }): Promise<void> {
+        await flowRunHooks.getHooks().onFinish({ projectId: flowRun.projectId, tasks: flowRun.tasks! })
+        await notifications.notifyRun({
+            flowRun,
+        })
+    },
+    async start({ flowRun, executionType, payload, synchronousHandlerId }: StartParams): Promise<void> {
         logger.info(`[FlowRunSideEffects#start] flowRunId=${flowRun.id} executionType=${executionType}`)
 
         await flowQueue.add({
             id: flowRun.id,
             type: JobType.ONE_TIME,
             data: {
+                synchronousHandlerId,
                 projectId: flowRun.projectId,
                 environment: flowRun.environment,
                 runId: flowRun.id,

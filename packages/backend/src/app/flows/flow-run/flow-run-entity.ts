@@ -1,6 +1,6 @@
 import { EntitySchema } from 'typeorm'
-import { ApIdSchema, BaseColumnSchemaPart } from '../../helper/base-entity'
-import { Flow, FlowRun, Project } from '@activepieces/shared'
+import { ARRAY_COLUMN_TYPE, ApIdSchema, BaseColumnSchemaPart, JSONB_COLUMN_TYPE, TIMESTAMP_COLUMN_TYPE, isPostgres } from '../../database/database-common'
+import { Flow, FlowRun, Project, RunTerminationReason } from '@activepieces/shared'
 
 type FlowRunSchema = FlowRun & {
     project: Project
@@ -25,15 +25,29 @@ export const FlowRunEntity = new EntitySchema<FlowRunSchema>({
         status: {
             type: String,
         },
+        terminationReason: {
+            type: String,
+            enum: RunTerminationReason,
+            nullable: true,
+        },
+        tags: {
+            type: ARRAY_COLUMN_TYPE,
+            array: isPostgres(),
+            nullable: true,
+        },
+        tasks: {
+            nullable: true,
+            type: Number,
+        },
         startTime: {
-            type: 'timestamp with time zone',
+            type: TIMESTAMP_COLUMN_TYPE,
         },
         finishTime: {
             nullable: true,
-            type: 'timestamp with time zone',
+            type: TIMESTAMP_COLUMN_TYPE,
         },
         pauseMetadata: {
-            type: 'jsonb',
+            type: JSONB_COLUMN_TYPE,
             nullable: true,
         },
     },

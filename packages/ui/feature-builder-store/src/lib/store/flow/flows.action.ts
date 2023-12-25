@@ -2,7 +2,7 @@ import { createAction, props } from '@ngrx/store';
 import { UUID } from 'angular2-uuid';
 import {
   AddActionRequest,
-  Flow,
+  PopulatedFlow,
   DeleteActionRequest,
   UpdateActionRequest,
   UpdateTriggerRequest,
@@ -10,6 +10,9 @@ import {
   FlowOperationRequest,
   Folder,
   MoveActionRequest,
+  FlowVersion,
+  FlowStatus,
+  ApId,
 } from '@activepieces/shared';
 
 export enum FlowsActionType {
@@ -27,6 +30,14 @@ export enum FlowsActionType {
   SELECT_FIRST_INVALID_STEP = '[FLOWS] SELECT_FIRST_INVALID_STEP',
   MOVE_ACTION = '[FLOWS] MOVE_ACTION',
   IMPORT_FLOW = '[FLOWS] IMPORT_FLOW',
+  TOGGLE_WAITING_TO_SAVE = '[FLOWS] TOGGLE_WAITING_TO_SAVE',
+  DUPLICATE_ACTION = `[FLOWS] DUPLICATE_ACTION`,
+  PUBLISH_FLOW = '[FLOWS] PUBLISH_FLOW',
+  PUBLISH_FLOW_FAILED = '[FLOWS] PUBLISH_FLOW_FAILED',
+  PUBLISH_FLOW_SUCCESS = '[FLOWS] PUBLISH_FLOW_SUCCESS',
+  DISABLE_INSTANCE = '[FLOWS] DISABLE_FLOW',
+  ENABLE_INSTANCE = `[FLOWS] ENABLE_FLOW`,
+  UPDATE_INSTANCE_STATUS_SUCCESS = `[FLOWS] UPDATE_STATUS_SUCCESS`,
 }
 
 const updateTrigger = createAction(
@@ -48,7 +59,7 @@ const addAction = createAction(
 
 const updateAction = createAction(
   FlowsActionType.UPDATE_ACTION,
-  props<{ operation: UpdateActionRequest; updatingMissingStep?: boolean }>()
+  props<{ operation: UpdateActionRequest }>()
 );
 
 const deleteAction = createAction(
@@ -58,7 +69,7 @@ const deleteAction = createAction(
 
 const savedSuccess = createAction(
   FlowsActionType.SAVED_SUCCESS,
-  props<{ saveRequestId: UUID; flow: Flow }>()
+  props<{ saveRequestId: UUID; flow: PopulatedFlow }>()
 );
 
 const savedFailed = createAction(
@@ -74,7 +85,7 @@ const changeName = createAction(
 const setInitial = createAction(
   FlowsActionType.SET_INITIAL,
   props<{
-    flow: Flow;
+    flow: PopulatedFlow & { publishedFlowVersion?: FlowVersion };
     run: FlowRun | undefined;
     folder?: Folder;
   }>()
@@ -82,15 +93,48 @@ const setInitial = createAction(
 const importFlow = createAction(
   FlowsActionType.SET_INITIAL,
   props<{
-    flow: Flow;
+    flow: PopulatedFlow;
+  }>()
+);
+const duplicateStep = createAction(
+  FlowsActionType.DUPLICATE_ACTION,
+  props<{
+    operation: {
+      flowVersionWithArtifacts: FlowVersion;
+      originalStepName: string;
+    };
   }>()
 );
 const applyUpdateOperation = createAction(
   FlowsActionType.APPLY_UPDATE_OPERATION,
-  props<{ flow: Flow; operation: FlowOperationRequest; saveRequestId: UUID }>()
+  props<{
+    flow: PopulatedFlow;
+    operation: FlowOperationRequest;
+    saveRequestId: UUID;
+  }>()
 );
-
+const toggleWaitingToSave = createAction(
+  FlowsActionType.TOGGLE_WAITING_TO_SAVE
+);
 const deselectStep = createAction(FlowsActionType.DESELECT_STEP);
+
+const enableFlow = createAction(FlowsActionType.ENABLE_INSTANCE);
+const disableFlow = createAction(FlowsActionType.DISABLE_INSTANCE);
+const publish = createAction(FlowsActionType.PUBLISH_FLOW);
+const publishFailed = createAction(FlowsActionType.PUBLISH_FLOW_FAILED);
+
+const publishSuccess = createAction(
+  FlowsActionType.PUBLISH_FLOW_SUCCESS,
+  props<{
+    status: FlowStatus;
+    showSnackbar: boolean;
+    publishedFlowVersionId: ApId;
+  }>()
+);
+const updateStatusSuccess = createAction(
+  FlowsActionType.UPDATE_INSTANCE_STATUS_SUCCESS,
+  props<{ status: FlowStatus }>()
+);
 
 export const FlowsActions = {
   setInitial,
@@ -106,6 +150,14 @@ export const FlowsActions = {
   selectFirstInvalidStep,
   moveAction,
   importFlow,
+  toggleWaitingToSave,
+  duplicateStep,
+  publish,
+  publishFailed,
+  publishSuccess,
+  enableFlow,
+  disableFlow,
+  updateStatusSuccess,
 };
 
 export const SingleFlowModifyingState = [
@@ -115,4 +167,5 @@ export const SingleFlowModifyingState = [
   updateTrigger,
   deleteAction,
   moveAction,
+  duplicateStep,
 ];

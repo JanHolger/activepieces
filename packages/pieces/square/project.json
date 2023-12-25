@@ -13,11 +13,12 @@
         "packageJson": "packages/pieces/square/package.json",
         "main": "packages/pieces/square/src/index.ts",
         "assets": ["packages/pieces/square/*.md"],
-        "buildableProjectDepsInPackageJsonType": "dependencies"
+        "buildableProjectDepsInPackageJsonType": "dependencies",
+        "updateBuildableProjectDepsInPackageJson": true
       }
     },
     "lint": {
-      "executor": "@nx/linter:eslint",
+      "executor": "@nx/eslint:lint",
       "outputs": ["{options.outputFile}"],
       "options": {
         "lintFilePatterns": ["packages/pieces/square/**/*.ts"]

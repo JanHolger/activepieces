@@ -1,9 +1,22 @@
 import { EntitySchema } from 'typeorm'
-import { PieceMetadata } from '@activepieces/pieces-framework'
-import { ApId, BaseModel, Project } from '@activepieces/shared'
-import { BaseColumnSchemaPart } from '../helper/base-entity'
+import { PieceMetadata, PieceMetadataSummary } from '@activepieces/pieces-framework'
+import { ApId, BaseModel, FileId, PackageType, PieceType, Project, ProjectId } from '@activepieces/shared'
+import { ApIdSchema, BaseColumnSchemaPart, COLLATION, JSON_COLUMN_TYPE } from '../database/database-common'
 
-export type PieceMetadataSchema = BaseModel<ApId> & PieceMetadata & { projectId: ApId, project: Project}
+type PiecePackageMetadata = {
+    projectId?: ProjectId
+    pieceType: PieceType
+    packageType: PackageType
+    archiveId?: FileId
+}
+
+export type PieceMetadataModel = PieceMetadata & PiecePackageMetadata
+
+export type PieceMetadataModelSummary = PieceMetadataSummary & PiecePackageMetadata
+
+export type PieceMetadataSchema = BaseModel<ApId> & PieceMetadataModel & {
+    project: Project
+}
 
 export const PieceMetadataEntity = new EntitySchema<PieceMetadataSchema>({
     name: 'piece_metadata',
@@ -29,32 +42,48 @@ export const PieceMetadataEntity = new EntitySchema<PieceMetadataSchema>({
             type: String,
             nullable: true,
         },
+        platformId: {
+            type: String,
+            nullable: true,
+        },
         version: {
             type: String,
             nullable: false,
-            collation: 'en_natural',
+            collation: COLLATION,
         },
         minimumSupportedRelease: {
             type: String,
             nullable: false,
-            collation: 'en_natural',
+            collation: COLLATION,
         },
         maximumSupportedRelease: {
             type: String,
             nullable: false,
-            collation: 'en_natural',
+            collation: COLLATION,
         },
         auth: {
-            type: 'jsonb',
+            type: JSON_COLUMN_TYPE,
             nullable: true,
         },
         actions: {
-            type: 'jsonb',
+            type: JSON_COLUMN_TYPE,
             nullable: false,
         },
         triggers: {
-            type: 'jsonb',
+            type: JSON_COLUMN_TYPE,
             nullable: false,
+        },
+        pieceType: {
+            type: String,
+            nullable: false,
+        },
+        packageType: {
+            type: String,
+            nullable: false,
+        },
+        archiveId: {
+            ...ApIdSchema,
+            nullable: true,
         },
     },
     indices: [
@@ -73,6 +102,18 @@ export const PieceMetadataEntity = new EntitySchema<PieceMetadataSchema>({
             joinColumn: {
                 name: 'projectId',
                 foreignKeyConstraintName: 'fk_piece_metadata_project_id',
+            },
+            nullable: true,
+        },
+        archiveId: {
+            type: 'one-to-one',
+            target: 'file',
+            onDelete: 'NO ACTION',
+            onUpdate: 'NO ACTION',
+            joinColumn: {
+                name: 'archiveId',
+                referencedColumnName: 'id',
+                foreignKeyConstraintName: 'fk_piece_metadata_file',
             },
         },
     },

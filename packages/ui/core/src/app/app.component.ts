@@ -1,5 +1,14 @@
 import { ChangeDetectionStrategy, Component, OnInit } from '@angular/core';
-import { catchError, map, Observable, of, Subject, switchMap, tap } from 'rxjs';
+import {
+  BehaviorSubject,
+  catchError,
+  map,
+  Observable,
+  of,
+  Subject,
+  switchMap,
+  tap,
+} from 'rxjs';
 import { Store } from '@ngrx/store';
 import {
   NavigationCancel,
@@ -15,21 +24,31 @@ import {
   FlagService,
   CommonActions,
   FlowService,
+  AppearanceService,
+  environment,
+  PlatformService,
 } from '@activepieces/ui/common';
 import { compareVersions } from 'compare-versions';
 import {
+  ApEdition,
   ApFlagId,
   FlowOperationType,
-  TelemetryEventName,
+  User,
 } from '@activepieces/shared';
-import { TelemetryService } from '@activepieces/ui/common';
-import { AuthenticationService, fadeInUp400ms } from '@activepieces/ui/common';
+import {
+  TelemetryService,
+  EmbeddingService,
+  AuthenticationService,
+  fadeInUp400ms,
+  LocalesService,
+} from '@activepieces/ui/common';
 import { MatDialog } from '@angular/material/dialog';
 import {
   CollectionBuilderService,
   FlowsActions,
 } from '@activepieces/ui/feature-builder-store';
 import { MatSnackBar } from '@angular/material/snack-bar';
+import { LocalesEnum, Platform } from '@activepieces/ee-shared';
 
 interface UpgradeNotificationMetaDataInLocalStorage {
   latestVersion: string;
@@ -46,16 +65,22 @@ const upgradeNotificationMetadataKeyInLocalStorage =
 })
 export class AppComponent implements OnInit {
   routeLoader$: Observable<unknown>;
-  loggedInUser$: Observable<void>;
-  warningMessage$: Observable<{ title?: string; body?: string } | undefined>;
+  loggedInUser$: Observable<User | undefined>;
   showUpgradeNotification$: Observable<boolean>;
   hideUpgradeNotification = false;
   openCommandBar$: Observable<void>;
   loading$: Subject<boolean> = new Subject();
   importTemplate$: Observable<void>;
+  loadingTheme$: BehaviorSubject<boolean> = new BehaviorSubject(true);
+  theme$: Observable<void>;
+  setTitle$: Observable<void>;
+  isCommunityEdition$: Observable<boolean>;
+  embeddedRouteListener$: Observable<boolean>;
+  redirect$?: Observable<Platform | undefined>;
   constructor(
     public dialog: MatDialog,
     private store: Store,
+    private apperanceService: AppearanceService,
     private authenticationService: AuthenticationService,
     private flagService: FlagService,
     private telemetryService: TelemetryService,
@@ -64,11 +89,145 @@ export class AppComponent implements OnInit {
     private domSanitizer: DomSanitizer,
     private builderService: CollectionBuilderService,
     private flowService: FlowService,
-    private snackbar: MatSnackBar
+    private snackbar: MatSnackBar,
+    private embeddedService: EmbeddingService,
+    private localesService: LocalesService,
+    private platformService: PlatformService
   ) {
     this.registerSearchIconIntoMaterialIconRegistery();
     this.listenToImportFlow();
-    this.routeLoader$ = this.router.events.pipe(
+    this.theme$ = this.apperanceService.setTheme().pipe(
+      tap(() => this.loadingTheme$.next(false)),
+      map(() => void 0)
+    );
+    this.embeddedRouteListener$ = this.createEmbeddingRoutesListener();
+    this.routeLoader$ = this.createRouteListenerToToggleLoadingAndSetTitle();
+    this.showUpgradeNotification$ =
+      this.createListenerToToggleUpgradeNotification();
+    this.rediectToCorrectLocale();
+  }
+
+  private listenToImportFlow() {
+    this.importTemplate$ = this.builderService.importTemplate$
+      .asObservable()
+      .pipe(
+        tap(() => {
+          this.loading$.next(true);
+        }),
+        switchMap((res) => {
+          return this.flowService
+            .update(res.flowId, {
+              type: FlowOperationType.IMPORT_FLOW,
+              request: {
+                displayName: res.template.name,
+                trigger: res.template.template.trigger,
+              },
+            })
+            .pipe(
+              tap((res) => {
+                this.loading$.next(false);
+                this.store.dispatch(FlowsActions.importFlow({ flow: res }));
+              }),
+              catchError((err) => {
+                this.loading$.next(false);
+                console.error(err);
+                this.snackbar.open(
+                  'Failed to import flow, check Console for erros',
+                  'Close'
+                );
+                return of(void 0);
+              })
+            );
+        }),
+        map(() => void 0)
+      );
+  }
+
+  private registerSearchIconIntoMaterialIconRegistery() {
+    this.maticonRegistry.addSvgIcon(
+      'info',
+      this.domSanitizer.bypassSecurityTrustResourceUrl(
+        '../assets/img/custom/info.svg'
+      )
+    );
+    this.maticonRegistry.addSvgIcon(
+      'search',
+      this.domSanitizer.bypassSecurityTrustResourceUrl(
+        '../assets/img/custom/search.svg'
+      )
+    );
+    this.maticonRegistry.addSvgIcon(
+      'custom_expand_less',
+      this.domSanitizer.bypassSecurityTrustResourceUrl(
+        '../assets/img/custom/expand_less.svg'
+      )
+    );
+    this.maticonRegistry.addSvgIcon(
+      'custom_expand_more',
+      this.domSanitizer.bypassSecurityTrustResourceUrl(
+        '../assets/img/custom/expand_more.svg'
+      )
+    );
+  }
+
+  ngOnInit(): void {
+    this.loggedInUser$ = this.authenticationService.currentUserSubject.pipe(
+      tap((user) => {
+        const decodedToken = this.authenticationService.getDecodedToken();
+        if (
+          user == undefined ||
+          Object.keys(user).length == 0 ||
+          !decodedToken
+        ) {
+          this.store.dispatch(CommonActions.clearState());
+          return;
+        }
+        this.store.dispatch(
+          CommonActions.loadProjects({
+            user: user,
+            currentProjectId: decodedToken['projectId'],
+          })
+        );
+        this.telemetryService.init(user);
+      })
+    );
+  }
+
+  getUpgradeNotificationMetadataInLocalStorage() {
+    try {
+      const localStorageValue = localStorage.getItem(
+        upgradeNotificationMetadataKeyInLocalStorage
+      );
+      if (localStorageValue) {
+        return JSON.parse(
+          localStorageValue
+        ) as UpgradeNotificationMetaDataInLocalStorage;
+      }
+      return null;
+    } catch (e) {
+      return null;
+    }
+  }
+  ignoreUpgradeNotification() {
+    const metadataInLocatStorage =
+      this.getUpgradeNotificationMetadataInLocalStorage()!;
+    metadataInLocatStorage.ignoreNotification = true;
+    localStorage.setItem(
+      upgradeNotificationMetadataKeyInLocalStorage,
+      JSON.stringify(metadataInLocatStorage)
+    );
+    this.showUpgradeNotification$ = of(false);
+  }
+  openUpgradeDocs() {
+    window.open(
+      'https://www.activepieces.com/docs/install/docker#upgrading',
+      '_blank',
+      'noopener noreferrer'
+    );
+  }
+
+  private createRouteListenerToToggleLoadingAndSetTitle() {
+    return this.router.events.pipe(
       tap((event) => {
         if (
           event instanceof NavigationStart &&
@@ -77,6 +236,15 @@ export class AppComponent implements OnInit {
           this.loading$.next(true);
         }
         if (event instanceof NavigationEnd) {
+          let route = this.router.routerState.root;
+
+          while (route.firstChild) {
+            route = route.firstChild;
+          }
+          const { title } = route.snapshot.data;
+          if (title) {
+            this.setTitle$ = this.apperanceService.setTitle(title);
+          }
           this.loading$.next(false);
         }
 
@@ -88,8 +256,14 @@ export class AppComponent implements OnInit {
         }
       })
     );
-    this.showUpgradeNotification$ = this.flagService.getAllFlags().pipe(
+  }
+
+  private createListenerToToggleUpgradeNotification() {
+    return this.flagService.getAllFlags().pipe(
       map((res) => {
+        if (res[ApFlagId.EDITION] !== ApEdition.COMMUNITY) {
+          return false;
+        }
         const currentVersion =
           (res[ApFlagId.CURRENT_VERSION] as string) || '0.0.0';
         const latestVersion =
@@ -128,116 +302,65 @@ export class AppComponent implements OnInit {
     );
   }
 
-  private listenToImportFlow() {
-    this.importTemplate$ = this.builderService.importTemplate$
-      .asObservable()
-      .pipe(
-        tap((res) => {
-          this.telemetryService.capture({
-            name: TelemetryEventName.FLOW_IMPORTED,
-            payload: {
-              id: res.template.id,
-              name: res.template.name,
-              location: 'Inside the builder after creation',
-            },
-          });
-          this.loading$.next(true);
-        }),
-        switchMap((res) => {
-          return this.flowService
-            .update(res.flowId, {
-              type: FlowOperationType.IMPORT_FLOW,
-              request: {
-                displayName: res.template.name,
-                trigger: res.template.template.trigger,
-              },
-            })
-            .pipe(
-              tap((res) => {
-                this.loading$.next(false);
-                this.store.dispatch(FlowsActions.importFlow({ flow: res }));
-              }),
-              catchError((err) => {
-                this.loading$.next(false);
-                console.error(err);
-                this.snackbar.open(
-                  'Failed to import flow, check Console for erros',
-                  'Close'
-                );
-                return of(void 0);
+  private createEmbeddingRoutesListener() {
+    return this.router.events.pipe(
+      switchMap((routingEvent) => {
+        return this.embeddedService.getIsInEmbedding$().pipe(
+          tap((embedded) => {
+            if (
+              routingEvent instanceof NavigationStart &&
+              routingEvent.url.startsWith('/embed') &&
+              embedded
+            ) {
+              console.error('visiting /embed after init');
+              this.router.navigate(['/'], { skipLocationChange: true });
+            }
+            if (embedded && routingEvent instanceof NavigationEnd) {
+              this.embeddedService.activepiecesRouteChanged(this.router.url);
+            }
+          })
+        );
+      })
+    );
+  }
+  private rediectToCorrectLocale() {
+    if (environment.production) {
+      //TODO: once we start having /en routes this logic should be altered to checking (if the localeFromBrowserUrl is undefined, switch to what is in localstorage)
+      this.redirect$ = this.authenticationService.currentUserSubject.pipe(
+        switchMap((usr) => {
+          const platformId = this.authenticationService.getPlatformId();
+          if (usr && platformId && Object.keys(usr).length > 0) {
+            return this.platformService.getPlatform(platformId).pipe(
+              tap((platform) => {
+                this.redirectToUserLocale(platform.defaultLocale);
               })
             );
-        }),
-        map(() => void 0)
+          }
+          return of(undefined).pipe(
+            tap(() => {
+              return this.redirectToUserLocale();
+            })
+          );
+        })
       );
-  }
-
-  private registerSearchIconIntoMaterialIconRegistery() {
-    this.maticonRegistry.addSvgIcon(
-      'search',
-      this.domSanitizer.bypassSecurityTrustResourceUrl(
-        '../assets/img/custom/search.svg'
-      )
-    );
-    this.maticonRegistry.addSvgIcon(
-      'custom_expand_less',
-      this.domSanitizer.bypassSecurityTrustResourceUrl(
-        '../assets/img/custom/expand_less.svg'
-      )
-    );
-    this.maticonRegistry.addSvgIcon(
-      'custom_expand_more',
-      this.domSanitizer.bypassSecurityTrustResourceUrl(
-        '../assets/img/custom/expand_more.svg'
-      )
-    );
-  }
-
-  ngOnInit(): void {
-    this.warningMessage$ = this.flagService.getWarningMessage();
-    this.loggedInUser$ = this.authenticationService.currentUserSubject.pipe(
-      tap((user) => {
-        if (user == undefined || Object.keys(user).length == 0) {
-          this.store.dispatch(CommonActions.clearState());
-          return;
-        }
-        this.store.dispatch(CommonActions.loadInitial({ user: user }));
-        this.telemetryService.init(user);
-      }),
-      map(() => void 0)
-    );
-  }
-
-  getUpgradeNotificationMetadataInLocalStorage() {
-    try {
-      const localStorageValue = localStorage.getItem(
-        upgradeNotificationMetadataKeyInLocalStorage
-      );
-      if (localStorageValue) {
-        return JSON.parse(
-          localStorageValue
-        ) as UpgradeNotificationMetaDataInLocalStorage;
-      }
-      return null;
-    } catch (e) {
-      return null;
     }
   }
-  ignoreUpgradeNotification() {
-    const metadataInLocatStorage =
-      this.getUpgradeNotificationMetadataInLocalStorage()!;
-    metadataInLocatStorage.ignoreNotification = true;
-    localStorage.setItem(
-      upgradeNotificationMetadataKeyInLocalStorage,
-      JSON.stringify(metadataInLocatStorage)
-    );
-    this.showUpgradeNotification$ = of(false);
-  }
-  openUpgradeDocs() {
-    window.open(
-      'https://www.activepieces.com/docs/install/docker#upgrading',
-      '_blank',
-      'noopener noreferrer'
-    );
+
+  /**Redirects to user locale if there's a mismatch between locale stored in localStorage and locale specified in url */
+  private redirectToUserLocale(platformDefaultLocale?: LocalesEnum) {
+    const currentLocaleFromUrl =
+      this.localesService.getCurrentLocaleFromBrowserUrlOrDefault();
+    const currentLocaleFormLocalstorageOrDefault =
+      this.localesService.getCurrentLocaleFromLocalStorage() ||
+      platformDefaultLocale ||
+      this.localesService.defaultLocale;
+    if (currentLocaleFormLocalstorageOrDefault !== currentLocaleFromUrl) {
+      this.localesService.setCurrentLocale(
+        currentLocaleFormLocalstorageOrDefault
+      );
+      this.localesService.redirectToLocale(
+        currentLocaleFormLocalstorageOrDefault
+      );
+    }
   }
 }

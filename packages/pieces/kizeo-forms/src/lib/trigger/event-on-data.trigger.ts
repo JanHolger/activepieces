@@ -10,6 +10,24 @@ export const eventOnData = createTrigger({
   displayName: 'Event On Data',
   description: 'Handle EventOnData events via webhooks',
   props: {
+    format: Property.StaticDropdown({
+        displayName: 'Output Format',
+        description: 'Select the output format',
+        required: true,
+        defaultValue: 'simple',
+        options: {
+            options: [
+                {
+                    label: 'Simple format',
+                    value: 'simple'
+                },
+                {
+                    label: 'Advanced format',
+                    value: 'advanced'
+                }
+            ]
+        }
+    }),
     formId: kizeoFormsCommon.formId,
     event1:
       Property.StaticDropdown({
@@ -180,7 +198,7 @@ export const eventOnData = createTrigger({
   },
   sampleData: {
     "id": "1",
-    "eventType": "[finished]",
+    "eventType": "[finished, pull]",
     "data": {
       "format": "4",
       "answer_time": "2023-04-11T13:59:23+02:00",
@@ -202,8 +220,9 @@ export const eventOnData = createTrigger({
     const { formId, event1, event2, event3, event4, event5 } = context.propsValue;
     const onEvents = [event1, event2 !== '' ? event2 : null, event3 !== '' ? event3 : null, event4 !== '' ? event4 : null, event5 !== '' ? event5 : null].filter(Boolean);
     const webhookUrl = context.webhookUrl;
-    const match = webhookUrl.match(/\/webhooks\/(\w+)\//);
-    let workflowId = ""
+    // eslint-disable-next-line no-useless-escape
+    const match = webhookUrl.match(/\/webhooks\/([^\/]+)/);
+    let workflowId = "FlowId"
     if (match) {
       workflowId = match[1];
     }
@@ -215,7 +234,7 @@ export const eventOnData = createTrigger({
         'url': webhookUrl,
         'http_verb': 'POST',
         'body_content_choice': 'json_v4',
-        'third_party': 'Active Pieces ',
+        'third_party': 'ActivePieces ',
         'third_party_id': workflowId,
       },
       headers: {
@@ -245,11 +264,44 @@ export const eventOnData = createTrigger({
     }
   },
   async run(context) {
-    return [context.payload.body];
+    if (!context.payload.body) {
+      return []
+    }
+    const body = context.payload.body as BodyDataType;
+    const formattedData : FormattedData = {
+        id: body.id,
+      };
+    if(context.propsValue.format === 'simple'){
+      for (const fieldKey in body.data.fields) {
+        if (body.data.fields[fieldKey].result && body.data.fields[fieldKey].result?.value !== undefined) {
+          const newFieldKey = fieldKey;
+          formattedData[newFieldKey] = body.data.fields[fieldKey].result?.value;
+        }
+      }
+      return [formattedData]
+    }
+
+    return [body];
   },
 });
 
+interface FormattedData {
+    id: string;
+    [key: string]: any;
+}
 
+interface BodyDataType {
+    id: string;
+    data: {
+        fields: {
+            [key: string]: {
+                result?: {
+                    value: any;
+                }
+            }
+        }
+    };
+}
 
 interface KizeoFormsWebhookInformation {
   webhookId: string;
